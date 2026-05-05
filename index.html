@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>波の重ね合わせ 設問作成ソフト</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ========================================================
+     ヘッダー
+     ======================================================== -->
+<header>
+  <h1>波の重ね合わせ &nbsp;設問作成ソフト</h1>
+  <span class="header-sub">物理基礎 授業用ツール</span>
+</header>
+
+<div class="app-container">
+
+  <!-- ======================================================
+       設定パネル（左）
+       ====================================================== -->
+  <aside class="settings-panel">
+
+    <!-- グリッド設定 -->
+    <div class="settings-group">
+      <h3>グリッド設定</h3>
+      <div class="setting-row">
+        <label>x 軸</label>
+        <div class="range-inputs">
+          <input type="number" id="xMin" value="0" step="1">
+          <span class="sep">〜</span>
+          <input type="number" id="xMax" value="10" step="1">
+        </div>
+      </div>
+      <div class="setting-row">
+        <label>y 軸</label>
+        <div class="range-inputs">
+          <input type="number" id="yMin" value="-2" step="0.5">
+          <span class="sep">〜</span>
+          <input type="number" id="yMax" value="2" step="0.5">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn-primary" onclick="App.applyGridConfig()">適用</button>
+      </div>
+    </div>
+
+    <!-- 描画スタイル設定 -->
+    <div class="settings-group">
+      <h3>描画スタイル</h3>
+      <div class="style-preset-row">
+        <button id="presetBtn_gray"   class="style-preset-btn active" onclick="App.applyStylePreset('gray')">グレー</button>
+        <button id="presetBtn_bw"     class="style-preset-btn"        onclick="App.applyStylePreset('bw')">白黒</button>
+        <button id="presetBtn_custom" class="style-preset-btn"        onclick="App.applyStylePreset('custom')">カスタム…</button>
+      </div>
+    </div>
+
+    <!-- 波 A 設定 -->
+    <div class="settings-group">
+      <h3>波 A</h3>
+      <div class="setting-row">
+        <label>速さ</label>
+        <input type="number" id="waveASpeed" value="1" min="0.5" step="0.5">
+        <span class="sep">マス/s</span>
+      </div>
+      <div class="setting-row">
+        <label>方向</label>
+        <div class="dir-group">
+          <button id="waveADirRight" class="dir-btn active" onclick="App.setDirection('A', 1)">→</button>
+          <button id="waveADirLeft"  class="dir-btn"        onclick="App.setDirection('A', -1)">←</button>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn-danger" onclick="App.clearWave('A')">クリア</button>
+      </div>
+    </div>
+
+    <!-- 波 B 設定（追加後に表示） -->
+    <div class="settings-group" id="waveBSection" style="display:none">
+      <h3>波 B</h3>
+      <div class="setting-row">
+        <label>速さ</label>
+        <input type="number" id="waveBSpeed" value="1" min="0.5" step="0.5">
+        <span class="sep">マス/s</span>
+      </div>
+      <div class="setting-row">
+        <label>方向</label>
+        <div class="dir-group">
+          <button id="waveBDirRight" class="dir-btn"        onclick="App.setDirection('B', 1)">→</button>
+          <button id="waveBDirLeft"  class="dir-btn active" onclick="App.setDirection('B', -1)">←</button>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn-danger"    onclick="App.clearWave('B')">クリア</button>
+        <button class="btn-secondary" onclick="App.toggleWaveB()">削除</button>
+      </div>
+    </div>
+
+    <!-- 波 B 追加ボタン -->
+    <div class="settings-group">
+      <button id="addWaveBBtn" class="btn-ghost" onclick="App.toggleWaveB()">＋ 波 B を追加</button>
+    </div>
+
+  </aside>
+
+  <!-- ========================================================
+       メインコンテンツ（右）
+       ======================================================== -->
+  <main class="main-content">
+
+    <!-- タブ -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="editor">波形編集</button>
+      <button class="tab-btn"        data-tab="preview">進行波プレビュー</button>
+      <button class="tab-btn"        data-tab="problems">設問作成</button>
+    </div>
+
+    <!-- ====================================================
+         タブ①: 波形編集
+         ==================================================== -->
+    <div id="tab-editor" class="tab-content active">
+
+      <!-- 波 A エディタ -->
+      <div class="editor-section">
+        <div class="editor-section-header">
+          <h3>波 A の波形入力</h3>
+        </div>
+        <p class="editor-hint">格子点を左クリック: 頂点を追加・移動　／　右クリック: 頂点を削除</p>
+        <canvas id="editorCanvasA" width="580" height="210"></canvas>
+      </div>
+
+      <!-- 波 B エディタ（追加後に表示） -->
+      <div class="editor-section" id="editorBSection" style="display:none">
+        <div class="editor-section-header">
+          <h3>波 B の波形入力</h3>
+        </div>
+        <p class="editor-hint">格子点を左クリック: 頂点を追加・移動　／　右クリック: 頂点を削除</p>
+        <canvas id="editorCanvasB" width="580" height="210"></canvas>
+      </div>
+
+    </div>
+
+    <!-- ====================================================
+         タブ②: 進行波プレビュー
+         ==================================================== -->
+    <div id="tab-preview" class="tab-content">
+
+      <div class="preview-toolbar">
+        <label>
+          表示時刻: t = 0 〜
+          <input type="number" id="previewTMax" value="5" min="1" max="20" style="width:52px">
+          秒
+        </label>
+        <button class="btn-primary"    onclick="App.renderPreview()">更新</button>
+        <button class="btn-secondary"  onclick="App.downloadAllPreviewPNGs()">全 PNG 一括 DL</button>
+      </div>
+
+      <div id="previewContainer"></div>
+
+    </div>
+
+    <!-- ====================================================
+         タブ③: 設問作成
+         ==================================================== -->
+    <div id="tab-problems" class="tab-content">
+      <div class="problem-builder">
+
+        <!-- 設問コントロール -->
+        <div class="problem-controls">
+          <h3>設問の設定</h3>
+
+          <div class="control-row">
+            <label>設問タイプ</label>
+            <select id="problemType" onchange="App.onProblemTypeChange()">
+              <option value="type1">Type 1 &nbsp;— t = ○秒のときの y-x グラフ</option>
+              <option value="type2">Type 2 &nbsp;— x = ○ cm の変位を求めよ（数値）</option>
+              <option value="type3">Type 3 &nbsp;— x = ○ cm の地点の y-t グラフ</option>
+              <option id="optType4" value="type4" disabled>Type 4 &nbsp;— 合成波（指定時刻・波 B が必要）</option>
+              <option id="optType5" value="type5" disabled>Type 5 &nbsp;— 複数時刻の合成波（範囲指定・波 B が必要）</option>
+            </select>
+          </div>
+
+          <!-- Type 1 パラメータ -->
+          <div id="params-type1" class="problem-params" style="display:flex">
+            <label>
+              解答時刻 &nbsp;t =
+              <input type="number" id="p1-answerT" value="2" min="1" max="20">
+              秒
+            </label>
+          </div>
+
+          <!-- Type 2 パラメータ -->
+          <div id="params-type2" class="problem-params">
+            <label>
+              時刻 &nbsp;t =
+              <input type="number" id="p2-t" value="1" min="0">
+              秒
+            </label>
+            <label>
+              地点 &nbsp;x =
+              <input type="number" id="p2-x" value="3" step="0.5">
+              cm
+            </label>
+          </div>
+
+          <!-- Type 3 パラメータ -->
+          <div id="params-type3" class="problem-params">
+            <label>
+              地点 &nbsp;x =
+              <input type="number" id="p3-x" value="3" step="0.5">
+              cm
+            </label>
+            <label>
+              表示範囲 &nbsp;tMax =
+              <input type="number" id="p3-tMax" value="6" min="1" max="20">
+              秒
+            </label>
+          </div>
+
+          <!-- Type 4 パラメータ -->
+          <div id="params-type4" class="problem-params">
+            <label>
+              解答時刻 &nbsp;t =
+              <input type="number" id="p4-answerT" value="2" min="1" max="20">
+              秒
+            </label>
+          </div>
+
+          <!-- Type 5 パラメータ -->
+          <div id="params-type5" class="problem-params">
+            <label>
+              開始時刻 &nbsp;t =
+              <input type="number" id="p5-tStart" value="1" min="0" max="20">
+              秒
+            </label>
+            <label>
+              終了時刻 &nbsp;t =
+              <input type="number" id="p5-tEnd" value="5" min="1" max="20">
+              秒
+            </label>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn-primary" onclick="App.generateProblem()">設問を生成</button>
+          </div>
+        </div>
+
+        <!-- 設問出力 -->
+        <div id="problemOutput"></div>
+
+        <!-- エクスポートボタン -->
+        <div id="exportControls">
+          <span>出力：</span>
+          <button class="export-btn"           onclick="App.exportProblemPDF()">問題 PDF</button>
+          <button class="export-btn secondary"  onclick="App.exportAnswerPDF()">解答 PDF</button>
+          <button class="export-btn secondary"  onclick="App.exportZIP()">画像 ZIP</button>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ライブラリ（CDN） -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
+        crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+        crossorigin="anonymous"></script>
+
+<!-- アプリスクリプト -->
+<script src="js/wave.js"></script>
+<script src="js/styles.js"></script>
+<script src="js/renderer.js"></script>
+<script src="js/editor.js"></script>
+<script src="js/problems.js"></script>
+<script src="js/exporter.js"></script>
+<script src="js/app.js"></script>
+
+<!-- ============================================================
+     描画スタイル カスタム設定 モーダル
+     ============================================================ -->
+<div id="styleModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)App.closeStyleModal()">
+  <div class="modal-box">
+    <h2 class="modal-title">描画スタイル カスタム設定</h2>
+
+    <table class="style-table">
+      <thead>
+        <tr>
+          <th>要素</th>
+          <th>色</th>
+          <th>太さ</th>
+          <th>線種</th>
+          <th>破線パターン <span class="style-hint">（例: 10, 5）</span></th>
+        </tr>
+      </thead>
+      <tbody id="styleTableBody">
+        <!-- JS で生成 -->
+      </tbody>
+    </table>
+
+    <p class="style-note">破線パターン: 実部px, 空部px, ... （線種が実線のときは無効）</p>
+
+    <div class="modal-footer">
+      <button class="btn-primary"    onclick="App.applyCustomStyle()">適用</button>
+      <button class="btn-secondary"  onclick="App.closeStyleModal()">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// モーダルのテーブル行を生成
+(function buildStyleTable() {
+  const rows = [
+    { key: 'grid',       label: 'グリッド' },
+    { key: 'waveA',      label: '波A' },
+    { key: 'waveB',      label: '波B' },
+    { key: 'waveSum',    label: '合成波' },
+    { key: 'waveSingle', label: '波（単独）' },
+  ];
+  const tbody = document.getElementById('styleTableBody');
+  rows.forEach(({ key, label }) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="style-label">${label}</td>
+      <td><input type="color"  id="sc-${key}-color" value="#000000"></td>
+      <td><input type="number" id="sc-${key}-lw"    value="1" step="0.1" min="0.1" max="10" class="style-num"></td>
+      <td>
+        <select id="sc-${key}-dash" onchange="App._onModalDashChange('${key}')">
+          <option value="solid">実線</option>
+          <option value="dashed">破線</option>
+        </select>
+      </td>
+      <td><input type="text" id="sc-${key}-dp" value="" placeholder="4, 4" class="style-dp"></td>
+    `;
+    tbody.appendChild(tr);
+  });
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,7 @@
+# テキストファイルはLFで統一（Windows/macOS間の差異を吸収）
+* text=auto eol=lf
+
+# バイナリは変換しない
+*.png binary
+*.jpg binary
+*.pdf binary

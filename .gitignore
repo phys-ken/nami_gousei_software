@@ -1,0 +1,32 @@
+# OS / Google Drive
+desktop.ini
+Thumbs.db
+.DS_Store
+~$*
+*.tmp
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# 環境変数（将来のAPIキー等）
+.env
+.env.local
+.env.*.local
+
+# Node.js（将来のフロントエンドビルド用）
+node_modules/
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code ローカル設定（権限設定はローカルのみ）
+.claude/settings.local.json
