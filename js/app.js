@@ -9,6 +9,7 @@ const App = {
   editorA: null,
   editorB: null,
   gridConfig: { xMin: 0, xMax: 10, yMin: -2, yMax: 2 },
+  cellSize: { w: null, h: null }, // null=自動（580×200 デフォルト）
   styleConfig: null,         // 現在アクティブな描画スタイル設定
   _customStyleConfig: null,  // カスタム設定を独立保持（プリセット切替でも消えない）
   styleMode: 'gray',         // 'gray' | 'bw' | 'custom'
@@ -26,8 +27,10 @@ const App = {
     this.waveB.direction = -1; // デフォルトは左向き
 
     this._loadStyleConfig();
+    this._loadCellSize();
     this._syncPresetButtons();
     this._syncGridInputs();
+    this._syncCellSizeInputs();
     this._setupEditorA();
     this._bindSpeedInputs();
     this._updateProblemTypeParams();
@@ -59,9 +62,68 @@ const App = {
       return;
     }
 
+    // cellSize の入力もここで反映（バリデーション失敗時は変更しない）
+    const newCellSize = this._readCellSizeInputs();
+    if (newCellSize === null) return;  // バリデーションエラーで中断
+
     this.gridConfig = { xMin, xMax, yMin, yMax };
+    this.cellSize   = newCellSize;
+    this._saveCellSize();
     this._setupEditorA();
     if (this.hasWaveB) this._setupEditorB();
+  },
+
+  // ------------------------------------------------------------------
+  // 1目盛サイズ（cellSize）— null=自動（既定 580×200 Canvas）
+  // ------------------------------------------------------------------
+  _loadCellSize() {
+    try {
+      const saved = localStorage.getItem('waveapp_cellSize');
+      if (saved) {
+        const obj = JSON.parse(saved);
+        this.cellSize = {
+          w: (typeof obj.w === 'number' && obj.w > 0) ? obj.w : null,
+          h: (typeof obj.h === 'number' && obj.h > 0) ? obj.h : null,
+        };
+      }
+    } catch (_) { this.cellSize = { w: null, h: null }; }
+  },
+
+  _saveCellSize() {
+    try {
+      localStorage.setItem('waveapp_cellSize', JSON.stringify(this.cellSize));
+    } catch (_) {}
+  },
+
+  _syncCellSizeInputs() {
+    const wEl = document.getElementById('cellPxW');
+    const hEl = document.getElementById('cellPxH');
+    if (wEl) wEl.value = this.cellSize.w == null ? '' : this.cellSize.w;
+    if (hEl) hEl.value = this.cellSize.h == null ? '' : this.cellSize.h;
+  },
+
+  /**
+   * cellSize 入力欄を読む。空欄=null、範囲外はアラート出して null を返す（呼び出し側で中断）
+   * @returns {{w:number|null, h:number|null} | null}  null=バリデーションエラー
+   */
+  _readCellSizeInputs() {
+    const min = WaveRenderer.CELL_PX_MIN;
+    const max = WaveRenderer.CELL_PX_MAX;
+    const parseOne = (id, label) => {
+      const raw = document.getElementById(id).value.trim();
+      if (raw === '') return { ok: true, value: null };
+      const v = parseFloat(raw);
+      if (isNaN(v) || v < min || v > max) {
+        alert(`${label} は ${min} 〜 ${max} の数値、または空欄（自動）を指定してください。`);
+        return { ok: false };
+      }
+      return { ok: true, value: v };
+    };
+    const w = parseOne('cellPxW', '1目盛のx方向ピクセル');
+    if (!w.ok) return null;
+    const h = parseOne('cellPxH', '1目盛のy方向ピクセル');
+    if (!h.ok) return null;
+    return { w: w.value, h: h.value };
   },
 
   // ------------------------------------------------------------------
@@ -183,8 +245,21 @@ const App = {
   // ------------------------------------------------------------------
   // 波形エディタ
   // ------------------------------------------------------------------
+  /**
+   * エディタ Canvas に gridConfig + cellSize から算出した寸法を適用する
+   * （pixelRatio=1。HTMLからは width/height 属性を削除済み）
+   */
+  _applyEditorCanvasSize(canvas) {
+    const size = WaveRenderer.computeCanvasSize(this.gridConfig, this.cellSize);
+    canvas.width        = size.width;
+    canvas.height       = size.height;
+    canvas.style.width  = `${size.width}px`;
+    canvas.style.height = `${size.height}px`;
+  },
+
   _setupEditorA() {
-    const canvas   = document.getElementById('editorCanvasA');
+    const canvas = document.getElementById('editorCanvasA');
+    this._applyEditorCanvasSize(canvas);
     const renderer = new WaveRenderer(canvas, Object.assign({}, this.gridConfig, {
       gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
     }));
@@ -198,7 +273,8 @@ const App = {
   },
 
   _setupEditorB() {
-    const canvas   = document.getElementById('editorCanvasB');
+    const canvas = document.getElementById('editorCanvasB');
+    this._applyEditorCanvasSize(canvas);
     const renderer = new WaveRenderer(canvas, Object.assign({}, this.gridConfig, {
       gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
     }));
@@ -297,15 +373,18 @@ const App = {
       ? [sc.waveA, sc.waveB]
       : [sc.waveSingle];
 
+    const size = WaveRenderer.computeCanvasSize(this.gridConfig, this.cellSize);
+    const PR   = 2;
+
     for (let t = 0; t <= tMax; t++) {
       const canvas = document.createElement('canvas');
-      canvas.width  = 1160;
-      canvas.height = 400;
-      canvas.style.width  = '580px';
-      canvas.style.height = '200px';
+      canvas.width        = size.width  * PR;
+      canvas.height       = size.height * PR;
+      canvas.style.width  = `${size.width}px`;
+      canvas.style.height = `${size.height}px`;
 
       const renderer = new WaveRenderer(canvas, Object.assign({}, this.gridConfig, {
-        pixelRatio: 2,
+        pixelRatio: PR,
         gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
       }));
       renderer.renderFull(waves, t, { styles });
@@ -360,7 +439,11 @@ const App = {
     }
 
     const type = document.getElementById('problemType').value;
-    const generator = new ProblemGenerator({ gridConfig: this.gridConfig, styleConfig: this.styleConfig });
+    const generator = new ProblemGenerator({
+      gridConfig:  this.gridConfig,
+      styleConfig: this.styleConfig,
+      cellSize:    this.cellSize,
+    });
 
     let result;
     try {

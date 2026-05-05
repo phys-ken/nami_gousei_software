@@ -5,6 +5,41 @@
  * 白黒印刷対応（実線・破線・太線で区別）
  */
 class WaveRenderer {
+  // ── デフォルト定数（cellSize 未指定時の Canvas 寸法）─────────────────
+  static DEFAULT_DISP_W = 580;
+  static DEFAULT_DISP_H = 200;
+  static DEFAULT_PADDING = { left: 52, right: 52, top: 32, bottom: 44 };
+  // cellSize の許容範囲（極端値で文字が重なるのを防ぐ）
+  static CELL_PX_MIN = 15;
+  static CELL_PX_MAX = 120;
+
+  /**
+   * gridConfig と cellSize から Canvas の論理寸法を計算する
+   *
+   * cellSize.w / cellSize.h が null/undefined/0 のとき → デフォルト寸法を返す
+   * 指定があるときは (range * cellPx + padding) で算出
+   *
+   * @param {Object} gridConfig { xMin, xMax, yMin, yMax }
+   * @param {Object} [cellSize] { w, h } 各々 null=自動
+   * @param {Object} [padding]  { left, right, top, bottom } 省略時は DEFAULT_PADDING
+   * @returns {{ width: number, height: number }} 論理ピクセル
+   */
+  static computeCanvasSize(gridConfig, cellSize, padding) {
+    const cs  = cellSize || {};
+    const pad = padding  || WaveRenderer.DEFAULT_PADDING;
+    const xRange = gridConfig.xMax - gridConfig.xMin;
+    const yRange = gridConfig.yMax - gridConfig.yMin;
+
+    const width  = (cs.w && cs.w > 0)
+      ? Math.round(xRange * cs.w + pad.left + pad.right)
+      : WaveRenderer.DEFAULT_DISP_W;
+    const height = (cs.h && cs.h > 0)
+      ? Math.round(yRange * cs.h + pad.top + pad.bottom)
+      : WaveRenderer.DEFAULT_DISP_H;
+
+    return { width, height };
+  }
+
   constructor(canvas, config) {
     this.canvas = canvas;
     this.ctx    = canvas.getContext('2d');

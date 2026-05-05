@@ -3,23 +3,41 @@
  *
  * 出力 Canvas は 2x pixelRatio で高解像度（印刷・PDF 品質）
  * style.width で画面表示サイズを 1x に固定
+ *
+ * Canvas 寸法は state.cellSize（{ w, h } / null=自動）から
+ * WaveRenderer.computeCanvasSize で算出。未設定時はデフォルト 580×200。
  */
 class ProblemGenerator {
   constructor(state) {
-    this.state    = state; // { gridConfig }
-    this.DISP_W   = 580;   // 画面表示幅（論理ピクセル）
-    this.DISP_H   = 200;   // 画面表示高さ（論理ピクセル）
-    this.PR       = 2;     // pixelRatio（印刷品質）
+    this.state = state; // { gridConfig, styleConfig, cellSize? }
+    this.PR    = 2;     // pixelRatio（印刷品質）
   }
 
   // ----------------------------------------------------------------
   // キャンバス・レンダラ生成ヘルパー
   // ----------------------------------------------------------------
 
+  /**
+   * メインの y-x グラフ用 Canvas 寸法（論理px）
+   * cellSize 未指定なら 580×200
+   */
+  _mainSize() {
+    return WaveRenderer.computeCanvasSize(this.state.gridConfig, this.state.cellSize);
+  }
+
+  /**
+   * 任意寸法で Canvas を生成
+   * dispW/dispH 省略時は _mainSize() を使用
+   */
   _makeCanvas(dispW, dispH) {
+    if (dispW === undefined || dispH === undefined) {
+      const s = this._mainSize();
+      dispW = s.width;
+      dispH = s.height;
+    }
     const canvas = document.createElement('canvas');
-    canvas.width       = dispW * this.PR;
-    canvas.height      = dispH * this.PR;
+    canvas.width        = dispW * this.PR;
+    canvas.height       = dispH * this.PR;
     canvas.style.width  = `${dispW}px`;
     canvas.style.height = `${dispH}px`;
     return canvas;
@@ -66,7 +84,7 @@ class ProblemGenerator {
 
   /** 波形スナップショットを描画した Canvas を返す */
   _renderSnapshot(waves, t, styles, options = {}) {
-    const canvas = this._makeCanvas(this.DISP_W, this.DISP_H);
+    const canvas = this._makeCanvas();
     const r      = this._makeRenderer(canvas, {});
     r.clear();
     r.drawGrid();
@@ -89,7 +107,7 @@ class ProblemGenerator {
 
   /** 空白解答欄（グリッド＋軸のみ） */
   _renderBlank(labelText, xLabel, yLabel) {
-    const canvas = this._makeCanvas(this.DISP_W, this.DISP_H);
+    const canvas = this._makeCanvas();
     const r      = this._makeRenderer(canvas, {});
     r.clear();
     r.drawGrid();
@@ -107,7 +125,7 @@ class ProblemGenerator {
    * 学生はここから合成波を自分で計算して描く
    */
   _renderWavesOnly(waveA, waveB, t) {
-    const canvas = this._makeCanvas(this.DISP_W, this.DISP_H);
+    const canvas = this._makeCanvas();
     const r      = this._makeRenderer(canvas, {});
     r.clear();
     r.drawGrid();
@@ -130,7 +148,7 @@ class ProblemGenerator {
 
   /** 波A・波B・合成波の3本を描画 — 解答図用 */
   _renderSuperposition(waveA, waveB, t) {
-    const canvas = this._makeCanvas(this.DISP_W, this.DISP_H);
+    const canvas = this._makeCanvas();
     const r      = this._makeRenderer(canvas, {});
     r.clear();
     r.drawGrid();
@@ -200,7 +218,7 @@ class ProblemGenerator {
 
     const qCanvas = this._renderSnapshot([wave], 0, [style], { timeLabel: 't = 0 [s]（参考）' });
 
-    const aCanvas = this._makeCanvas(this.DISP_W, this.DISP_H);
+    const aCanvas = this._makeCanvas();
     const r       = this._makeRenderer(aCanvas, {});
     r.renderFull([wave], t, { styles: [style], showTimeLabel: true });
     r.drawPointMarker(x, y);
@@ -221,6 +239,7 @@ class ProblemGenerator {
     const { wave, x, tMax } = params;
     const gc = this.state.gridConfig;
     const sc = this.state.styleConfig;
+    const cs = this.state.cellSize;
 
     const ytConfig = {
       xMin: 0, xMax: tMax,
@@ -230,9 +249,16 @@ class ProblemGenerator {
       gridStyle: sc ? sc.grid : undefined,
     };
 
+    // y-t グラフのサイズ：横は固定 580px（時間軸の物理意味が y-x と異なるため
+    // cellSize.w は流用しない）。縦のみ cellSize.h を反映する。
+    const ytSize = WaveRenderer.computeCanvasSize(
+      { xMin: gc.yMin, xMax: gc.yMax, yMin: gc.yMin, yMax: gc.yMax }, // 幅算出には使わないダミー
+      { w: null, h: cs ? cs.h : null }
+    );
+
     // y-t グラフ（空白 or 解答線あり）
     const makeYtCanvas = (drawWave) => {
-      const canvas = this._makeCanvas(this.DISP_W, this.DISP_H);
+      const canvas = this._makeCanvas(WaveRenderer.DEFAULT_DISP_W, ytSize.height);
       const r      = new WaveRenderer(canvas, Object.assign({}, ytConfig, { pixelRatio: this.PR }));
       r.clear();
       r.drawGrid();
@@ -251,7 +277,7 @@ class ProblemGenerator {
 
     // 参考用: t ごとの y-x 進行波スナップショット + x=○ の地点マーカー
     const makeSnapWithMarker = (t) => {
-      const canvas = this._makeCanvas(this.DISP_W, this.DISP_H);
+      const canvas = this._makeCanvas();
       const r      = this._makeRenderer(canvas, {});
       r.clear();
       r.drawGrid();

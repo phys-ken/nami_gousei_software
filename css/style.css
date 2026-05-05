@@ -505,6 +505,44 @@ select:focus { outline: none; border-color: #1e3a5f; }
 .export-btn.secondary:hover { background: #e8eef5; }
 
 /* ============================================================
+   1目盛サイズ（任意設定・折りたたみ）
+   ============================================================ */
+.cell-size-details {
+  margin: 6px 0 4px;
+  padding: 6px 0 2px;
+  border-top: 1px dashed #e0e3e8;
+  font-size: 12px;
+}
+.cell-size-details > summary {
+  cursor: pointer;
+  color: #6b7c8e;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 0;
+  list-style: none;
+  user-select: none;
+}
+.cell-size-details > summary::-webkit-details-marker { display: none; }
+.cell-size-details > summary::before {
+  content: '▸ ';
+  font-size: 10px;
+  color: #8a9aaa;
+}
+.cell-size-details[open] > summary::before {
+  content: '▾ ';
+}
+.cell-size-details > summary:hover { color: #1e3a5f; }
+.cell-size-hint {
+  font-size: 10px;
+  color: #8a9aaa;
+  line-height: 1.4;
+  margin: 4px 0 6px;
+}
+.cell-size-input {
+  width: 56px;
+}
+
+/* ============================================================
    描画スタイル プリセットボタン
    ============================================================ */
 .style-preset-row {
