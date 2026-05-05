@@ -436,9 +436,10 @@ class ProblemGenerator {
     const dirA = waveA.direction > 0 ? '右' : '左';
     const dirB = waveB.direction > 0 ? '右' : '左';
 
+    const blankLabel = this.state.hasChoices ? `t = ${answerT} [s]（作図用）` : `t = ${answerT} [s]（解答欄）`;
     const questionCanvases = [
       this._renderWavesOnly(waveA, waveB, 0),
-      this._renderBlank(`t = ${answerT} [s]（解答欄）`),
+      this._renderBlank(blankLabel),
     ];
     const answerCanvases = [];
     for (let t = 0; t <= answerT; t++) {

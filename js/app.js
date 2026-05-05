@@ -430,10 +430,14 @@ const App = {
     return Object.assign({}, this.gridConfig);
   },
 
-  /** distractor Canvas のサイズ（メインエディタと同じ計算） */
+  /** distractor Canvas のサイズ（出力と揃える） */
   _distractorCanvasSize(type) {
     const gc = this._distractorGridConfig(type);
-    return WaveRenderer.computeCanvasSize(gc, this.cellSize);
+    // Type3 は y-t グラフ → 横幅は固定 580px（出力ルールと同じ）、縦のみ cellSize.h を反映
+    const cs = type === 'type3'
+      ? { w: null, h: this.cellSize ? this.cellSize.h : null }
+      : this.cellSize;
+    return WaveRenderer.computeCanvasSize(gc, cs);
   },
 
   // ------------------------------------------------------------------
@@ -792,10 +796,12 @@ const App = {
     }
 
     const type = document.getElementById('problemType').value;
+    const hasChoices = (type === 'type3' || type === 'type4') && !!this.choicesConfig[type]?.enabled;
     const generator = new ProblemGenerator({
       gridConfig:  this.gridConfig,
       styleConfig: this.styleConfig,
       cellSize:    this.cellSize,
+      hasChoices,
     });
 
     let result;

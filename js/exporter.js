@@ -134,13 +134,20 @@ class Exporter {
 
       // Canvas 画像（波形グラフなど）
       if (section.canvases && section.canvases.length > 0) {
+        // 高さを 70mm に制限してアスペクト比保持縮小（cellSize 大時に1枚で1ページ占有するのを防ぐ）
+        const MAX_GRAPH_H = 70;
         for (const canvas of section.canvases) {
           const imgData = canvas.toDataURL('image/png');
           const ratio   = canvas.height / canvas.width;
-          const imgW    = contentW;
-          const imgH    = imgW * ratio;
+          let imgW = contentW;
+          let imgH = imgW * ratio;
+          if (imgH > MAX_GRAPH_H) {
+            imgH = MAX_GRAPH_H;
+            imgW = imgH / ratio;
+          }
+          const imgX = margin + (contentW - imgW) / 2;
           checkNewPage(imgH + 4);
-          doc.addImage(imgData, 'PNG', margin, curY, imgW, imgH);
+          doc.addImage(imgData, 'PNG', imgX, curY, imgW, imgH);
           curY += imgH + 4;
         }
       }
@@ -170,13 +177,18 @@ class Exporter {
    *
    * @param choices [{ canvas, label, isCorrect?, showCorrect? }] 表示順（既にシャッフル済み）
    * @returns 新しい curY
+   *
+   * 注: ページ折り返しはこのメソッド内でローカル curY を使って独自管理する。
+   * 外部の checkNewPage クロージャが参照する curY とは別変数のため、
+   * 外部 checkNewPage を呼ぶと curY が2重管理になりバグの原因になる。
    */
   static _renderChoicesGridToPdf(doc, choices, startY, margin, contentW, pageW, pageH, embedText, checkNewPage) {
-    const COLUMNS  = 2;
-    const COL_GAP  = 6;
-    const ROW_GAP  = 4;
-    const LABEL_H  = 6;        // 選択肢ラベル「① ② ...」の高さ目安
-    const colW     = (contentW - COL_GAP * (COLUMNS - 1)) / COLUMNS;
+    const COLUMNS   = 2;
+    const COL_GAP   = 6;
+    const ROW_GAP   = 4;
+    const LABEL_H   = 6;        // 選択肢ラベル「① ② ...」の高さ目安
+    const MARGIN_B  = 14;       // 下余白
+    const colW      = (contentW - COL_GAP * (COLUMNS - 1)) / COLUMNS;
 
     let curY = startY;
 
@@ -186,7 +198,11 @@ class Exporter {
       // 各 Canvas のアスペクト比から行高さを決定（行内の最大）
       const rowH = Math.max(...rowItems.map(it => colW * (it.canvas.height / it.canvas.width))) + LABEL_H + 2;
 
-      checkNewPage(rowH + ROW_GAP);
+      // ページ折り返し — ローカル curY で完結させる（外部 checkNewPage に依存しない）
+      if (curY + rowH + ROW_GAP > pageH - MARGIN_B) {
+        doc.addPage();
+        curY = MARGIN_B;
+      }
 
       rowItems.forEach((item, j) => {
         const x = margin + j * (colW + COL_GAP);
