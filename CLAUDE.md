@@ -18,7 +18,11 @@ python server.py
 
 ## ロジックのユニットテスト（Node.js）
 
-`wave.js` の座標計算・補間ロジックは Node.js で直接検証できる（`document`/`canvas` に非依存）。`problems.js`・`editor.js`・`renderer.js` はブラウザ Canvas API に依存するためブラウザでのみ動作確認可能。
+```bash
+node --test tests/wave.test.js
+```
+
+`wave.js` の全メソッド（setVertex / getY / getYAtTime / getSnapshot / clear / toJSON / fromJSON）を 30 ケースで検証。`problems.js`・`editor.js`・`renderer.js` はブラウザ Canvas API に依存するためブラウザでのみ動作確認可能。
 
 ## アーキテクチャ
 
