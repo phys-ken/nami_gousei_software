@@ -191,9 +191,9 @@
           <div class="control-row">
             <label>設問タイプ</label>
             <select id="problemType" onchange="App.onProblemTypeChange()">
-              <option value="type1">Type 1 &nbsp;— t = ○秒のときの y-x グラフ</option>
-              <option value="type2">Type 2 &nbsp;— x = ○ cm の変位を求めよ（数値）</option>
-              <option value="type3">Type 3 &nbsp;— x = ○ cm の地点の y-t グラフ</option>
+              <option id="optType1" value="type1">Type 1 &nbsp;— t = ○秒のときの y-x グラフ</option>
+              <option id="optType2" value="type2">Type 2 &nbsp;— x = ○ cm の変位を求めよ（数値）</option>
+              <option id="optType3" value="type3">Type 3 &nbsp;— x = ○ cm の地点の y-t グラフ</option>
               <option id="optType4" value="type4" disabled>Type 4 &nbsp;— 合成波（指定時刻・波 B が必要）</option>
               <option id="optType5" value="type5" disabled>Type 5 &nbsp;— 複数時刻の合成波（範囲指定・波 B が必要）</option>
             </select>
@@ -236,6 +236,28 @@
             </label>
           </div>
 
+          <!-- Type 3 選択肢モード -->
+          <div id="choices-type3-section" class="choices-section" style="display:none">
+            <div class="choices-toggle-row">
+              <button id="choices-type3-toggle" class="toggle-btn" onclick="App.toggleChoicesMode('type3')">
+                <span class="toggle-knob"></span>
+                <span class="toggle-label">選択肢モード</span>
+              </button>
+              <span class="choices-status" id="choices-type3-status"></span>
+            </div>
+            <div id="choices-type3-panel" class="choices-panel" style="display:none">
+              <div class="choices-panel-header">
+                <label>
+                  選択肢数:
+                  <input type="number" id="choices-type3-count" value="6" min="2" max="10"
+                         onchange="App.onChoicesCountChange('type3')" class="choices-count-input">
+                </label>
+                <span class="choices-hint">選択肢① は正答（自動生成）。選択肢② 以降を編集してください。</span>
+              </div>
+              <div id="choices-type3-list" class="choices-list"></div>
+            </div>
+          </div>
+
           <!-- Type 4 パラメータ -->
           <div id="params-type4" class="problem-params">
             <label>
@@ -243,6 +265,28 @@
               <input type="number" id="p4-answerT" value="2" min="1" max="20">
               秒
             </label>
+          </div>
+
+          <!-- Type 4 選択肢モード -->
+          <div id="choices-type4-section" class="choices-section" style="display:none">
+            <div class="choices-toggle-row">
+              <button id="choices-type4-toggle" class="toggle-btn" onclick="App.toggleChoicesMode('type4')">
+                <span class="toggle-knob"></span>
+                <span class="toggle-label">選択肢モード</span>
+              </button>
+              <span class="choices-status" id="choices-type4-status"></span>
+            </div>
+            <div id="choices-type4-panel" class="choices-panel" style="display:none">
+              <div class="choices-panel-header">
+                <label>
+                  選択肢数:
+                  <input type="number" id="choices-type4-count" value="6" min="2" max="10"
+                         onchange="App.onChoicesCountChange('type4')" class="choices-count-input">
+                </label>
+                <span class="choices-hint">選択肢① は正答（合成波・自動生成）。選択肢② 以降に間違いの合成波を描いてください。</span>
+              </div>
+              <div id="choices-type4-list" class="choices-list"></div>
+            </div>
           </div>
 
           <!-- Type 5 パラメータ -->
@@ -289,6 +333,7 @@
 
 <!-- アプリスクリプト -->
 <script src="js/wave.js"></script>
+<script src="js/random.js"></script>
 <script src="js/styles.js"></script>
 <script src="js/renderer.js"></script>
 <script src="js/editor.js"></script>

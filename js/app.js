@@ -15,6 +15,16 @@ const App = {
   styleMode: 'gray',         // 'gray' | 'bw' | 'custom'
   currentProblem: null,
 
+  // 選択肢モード設定（Type3 / Type4 のみ対象）
+  // distractors[] には Wave インスタンスが入る（count - 1 個、正答は別途自動生成）
+  // source は将来 'auto'（自動生成）を追加できるように布石
+  choicesConfig: {
+    type3: { enabled: false, count: 6, source: 'manual', distractors: [] },
+    type4: { enabled: false, count: 6, source: 'manual', distractors: [] },
+  },
+  // 選択肢エディタ用 WaveEditor インスタンスを保持（再生成時のクリーンアップ用）
+  _choiceEditors: { type3: [], type4: [] },
+
   // ------------------------------------------------------------------
   // 初期化
   // ------------------------------------------------------------------
@@ -28,11 +38,13 @@ const App = {
 
     this._loadStyleConfig();
     this._loadCellSize();
+    this._loadChoicesConfig();
     this._syncPresetButtons();
     this._syncGridInputs();
     this._syncCellSizeInputs();
     this._setupEditorA();
     this._bindSpeedInputs();
+    this._bindChoicesParamRefresh();
     this._updateProblemTypeParams();
 
     // タブボタン
@@ -71,6 +83,15 @@ const App = {
     this._saveCellSize();
     this._setupEditorA();
     if (this.hasWaveB) this._setupEditorB();
+    this._refreshActiveChoicesPanel();
+  },
+
+  /** 現在選択中の Type の選択肢パネルを再描画（gridConfig や style の変更を反映） */
+  _refreshActiveChoicesPanel() {
+    const type = document.getElementById('problemType').value;
+    if ((type === 'type3' || type === 'type4') && this.choicesConfig[type].enabled) {
+      this._renderChoicesPanel(type);
+    }
   },
 
   // ------------------------------------------------------------------
@@ -124,6 +145,295 @@ const App = {
     const h = parseOne('cellPxH', '1目盛のy方向ピクセル');
     if (!h.ok) return null;
     return { w: w.value, h: h.value };
+  },
+
+  // ------------------------------------------------------------------
+  // 選択肢モード（Type3 / Type4）— 状態管理
+  // ------------------------------------------------------------------
+
+  /** localStorage から復元（distractors は Wave インスタンスとして再構築） */
+  _loadChoicesConfig() {
+    try {
+      const saved = localStorage.getItem('waveapp_choicesConfig');
+      if (!saved) return;
+      const obj = JSON.parse(saved);
+      ['type3', 'type4'].forEach(t => {
+        const c = obj[t];
+        if (!c) return;
+        this.choicesConfig[t].enabled = !!c.enabled;
+        this.choicesConfig[t].count   = (typeof c.count === 'number' && c.count >= 2 && c.count <= 10) ? c.count : 6;
+        this.choicesConfig[t].source  = c.source || 'manual';
+        this.choicesConfig[t].distractors = (c.distractors || []).map(json => new Wave().fromJSON(json));
+      });
+    } catch (_) {/* 失敗時はデフォルトのまま */}
+  },
+
+  _saveChoicesConfig() {
+    try {
+      const out = {};
+      ['type3', 'type4'].forEach(t => {
+        const c = this.choicesConfig[t];
+        out[t] = {
+          enabled: c.enabled,
+          count:   c.count,
+          source:  c.source,
+          distractors: c.distractors.map(w => w.toJSON()),
+        };
+      });
+      localStorage.setItem('waveapp_choicesConfig', JSON.stringify(out));
+    } catch (_) {}
+  },
+
+  /** type の distractors に頂点が1つでもあれば true */
+  _choicesHasContent(type) {
+    return this.choicesConfig[type].distractors.some(w => w.vertices.length > 0);
+  },
+
+  /**
+   * 選択肢数を変更（Wave 配列を伸縮）
+   * 必要数 = count - 1（正答は自動生成のため distractors には含めない）
+   */
+  _resizeDistractors(type, count) {
+    const need = Math.max(0, count - 1);
+    const arr  = this.choicesConfig[type].distractors;
+    while (arr.length < need) arr.push(new Wave());
+    while (arr.length > need) arr.pop();
+  },
+
+  /**
+   * トグルボタンのクリックハンドラ
+   * OFF→ON: そのまま展開
+   * ON→OFF: distractors に頂点があれば確認ダイアログを出す
+   */
+  toggleChoicesMode(type) {
+    const cfg = this.choicesConfig[type];
+    if (cfg.enabled) {
+      // 無効化しようとしている: 内容がある場合は確認
+      if (this._choicesHasContent(type)) {
+        const ok = confirm('選択肢モードを無効化すると、現在の選択肢の波形は削除されます。よろしいですか？');
+        if (!ok) return;  // キャンセル: トグル状態を変更しない
+        cfg.distractors.forEach(w => w.clear());
+      }
+      cfg.enabled = false;
+    } else {
+      // 有効化: 必要な数だけ Wave を確保
+      cfg.enabled = true;
+      this._resizeDistractors(type, cfg.count);
+    }
+    this._saveChoicesConfig();
+    this._renderChoicesPanel(type);
+  },
+
+  /** 選択肢数の input が変わったとき */
+  onChoicesCountChange(type) {
+    const el = document.getElementById(`choices-${type}-count`);
+    let n = parseInt(el.value, 10);
+    if (isNaN(n) || n < 2) n = 2;
+    if (n > 10) n = 10;
+    el.value = n;
+    this.choicesConfig[type].count = n;
+    this._resizeDistractors(type, n);
+    this._saveChoicesConfig();
+    this._renderChoicesPanel(type);
+  },
+
+  /** 個別の選択肢をクリア */
+  clearDistractor(type, idx) {
+    const w = this.choicesConfig[type].distractors[idx];
+    if (!w) return;
+    w.clear();
+    const ed = this._choiceEditors[type][idx];
+    if (ed) ed.render();
+  },
+
+  /** 正答プレビューを再描画（波A・波B・パラメータの変更を反映） */
+  refreshCorrectPreview(type) {
+    if (!this.choicesConfig[type].enabled) return;
+    this._renderChoicesList(type);
+  },
+
+  // ------------------------------------------------------------------
+  // 選択肢モード — UI レンダリング
+  // ------------------------------------------------------------------
+
+  /** トグルボタンの ON/OFF 表示 + パネルの表示切替 + リスト再描画 */
+  _renderChoicesPanel(type) {
+    const cfg     = this.choicesConfig[type];
+    const toggle  = document.getElementById(`choices-${type}-toggle`);
+    const panel   = document.getElementById(`choices-${type}-panel`);
+    const status  = document.getElementById(`choices-${type}-status`);
+    const countEl = document.getElementById(`choices-${type}-count`);
+    if (!toggle || !panel) return;
+
+    toggle.classList.toggle('on', cfg.enabled);
+    panel.style.display = cfg.enabled ? 'block' : 'none';
+    if (countEl) countEl.value = cfg.count;
+
+    if (cfg.enabled) {
+      status.textContent = `${cfg.count} 択（① 正答 + ${cfg.count - 1} 個の不正解）`;
+      this._renderChoicesList(type);
+    } else {
+      status.textContent = '記述式（解答画像を表示）';
+      // エディタインスタンスをクリア
+      this._choiceEditors[type] = [];
+    }
+  },
+
+  /** 選択肢一覧（正答 + distractors）を描画 */
+  _renderChoicesList(type) {
+    const cfg     = this.choicesConfig[type];
+    const listEl  = document.getElementById(`choices-${type}-list`);
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    this._choiceEditors[type] = [];
+
+    // 1) 選択肢① = 正答（システム生成・読み取り専用）
+    const correctItem = this._buildChoiceItemContainer(1, true);
+    const correctCanvas = this._renderCorrectChoiceCanvas(type);
+    if (correctCanvas) {
+      // 描画専用の Canvas（編集不可）。スタイルだけ揃える
+      correctCanvas.style.cursor = 'default';
+      correctItem.canvasArea.appendChild(correctCanvas);
+    } else {
+      const note = document.createElement('p');
+      note.className = 'answer-note';
+      note.textContent = type === 'type3'
+        ? '波A の波形と地点 x・tMax を設定すると正答が表示されます。'
+        : '波A・波B の波形と解答時刻 t を設定すると正答が表示されます。';
+      correctItem.canvasArea.appendChild(note);
+    }
+    listEl.appendChild(correctItem.root);
+
+    // 2) 選択肢② 〜 ⑥（distractors）= ユーザ入力
+    for (let i = 0; i < cfg.distractors.length; i++) {
+      const item = this._buildChoiceItemContainer(i + 2, false, () => this.clearDistractor(type, i));
+      const canvas = this._buildDistractorCanvas(type, i);
+      item.canvasArea.appendChild(canvas);
+      listEl.appendChild(item.root);
+
+      // WaveEditor を生成
+      const wave     = cfg.distractors[i];
+      const renderer = this._buildDistractorRenderer(type, canvas);
+      const editor   = new WaveEditor(canvas, wave, renderer, () => this._saveChoicesConfig());
+      this._choiceEditors[type].push(editor);
+    }
+  },
+
+  /** 選択肢アイテムの外枠を生成（ヘッダー + canvasArea） */
+  _buildChoiceItemContainer(displayNumber, isCorrect, onClear) {
+    const root = document.createElement('div');
+    root.className = 'choice-item';
+
+    const header = document.createElement('div');
+    header.className = 'choice-item-header';
+
+    const label = document.createElement('span');
+    label.className = 'choice-item-label';
+    label.textContent = `選択肢 ${this._numToCircled(displayNumber)}`;
+    header.appendChild(label);
+
+    if (isCorrect) {
+      const badge = document.createElement('span');
+      badge.className = 'choice-item-correct-badge';
+      badge.textContent = '正答';
+      header.appendChild(badge);
+    } else {
+      const note = document.createElement('span');
+      note.className = 'choices-hint';
+      note.textContent = 'クリックで頂点を追加・移動／右クリックで削除';
+      header.appendChild(note);
+
+      if (onClear) {
+        const btn = document.createElement('button');
+        btn.className = 'choice-item-clear-btn';
+        btn.textContent = 'クリア';
+        btn.onclick = onClear;
+        header.appendChild(btn);
+      }
+    }
+
+    const canvasArea = document.createElement('div');
+    root.appendChild(header);
+    root.appendChild(canvasArea);
+    return { root, canvasArea };
+  },
+
+  /** ① ② ③ ... ⑩ の丸数字（11以上は (11) のように括弧表記） */
+  _numToCircled(n) {
+    const circled = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩'];
+    return n >= 1 && n <= 10 ? circled[n - 1] : `(${n})`;
+  },
+
+  /** 正答 Canvas を生成（ProblemGenerator のヘルパーを利用） */
+  _renderCorrectChoiceCanvas(type) {
+    const gen = new ProblemGenerator({
+      gridConfig:  this.gridConfig,
+      styleConfig: this.styleConfig,
+      cellSize:    this.cellSize,
+    });
+
+    if (type === 'type3') {
+      if (this.waveA.vertices.length === 0) return null;
+      const x    = parseFloat(document.getElementById('p3-x').value);
+      const tMax = parseInt(document.getElementById('p3-tMax').value, 10);
+      if (isNaN(x) || isNaN(tMax) || tMax < 1) return null;
+      return gen.renderType3CorrectCanvas(this.waveA, x, tMax);
+    } else if (type === 'type4') {
+      if (!this.hasWaveB) return null;
+      if (this.waveA.vertices.length === 0 || this.waveB.vertices.length === 0) return null;
+      const t = parseInt(document.getElementById('p4-answerT').value, 10);
+      if (isNaN(t) || t < 1) return null;
+      // 速さも最新化
+      const sa = parseFloat(document.getElementById('waveASpeed').value);
+      const sb = parseFloat(document.getElementById('waveBSpeed').value);
+      if (!isNaN(sa)) this.waveA.speed = sa;
+      if (!isNaN(sb)) this.waveB.speed = sb;
+      return gen.renderType4CorrectCanvas(this.waveA, this.waveB, t);
+    }
+    return null;
+  },
+
+  /** distractor 用 Canvas（編集可能） */
+  _buildDistractorCanvas(type, idx) {
+    const canvas = document.createElement('canvas');
+    canvas.id = `distractor-${type}-${idx}`;
+    canvas.style.cursor = 'crosshair';
+    const size = this._distractorCanvasSize(type);
+    canvas.width        = size.width;
+    canvas.height       = size.height;
+    canvas.style.width  = `${size.width}px`;
+    canvas.style.height = `${size.height}px`;
+    return canvas;
+  },
+
+  /** distractor エディタ用 Renderer（pixelRatio=1） */
+  _buildDistractorRenderer(type, canvas) {
+    const cfg = this._distractorGridConfig(type);
+    return new WaveRenderer(canvas, Object.assign({}, cfg, {
+      gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
+    }));
+  },
+
+  /**
+   * distractor エディタの gridConfig
+   * Type3: y-t グラフ → x軸=t [0, tMax], y軸=メイングリッドの yMin/yMax
+   * Type4: y-x グラフ → メイングリッドと同じ
+   */
+  _distractorGridConfig(type) {
+    if (type === 'type3') {
+      const tMax = parseInt(document.getElementById('p3-tMax').value, 10) || 6;
+      return {
+        xMin: 0, xMax: tMax,
+        yMin: this.gridConfig.yMin, yMax: this.gridConfig.yMax,
+      };
+    }
+    return Object.assign({}, this.gridConfig);
+  },
+
+  /** distractor Canvas のサイズ（メインエディタと同じ計算） */
+  _distractorCanvasSize(type) {
+    const gc = this._distractorGridConfig(type);
+    return WaveRenderer.computeCanvasSize(gc, this.cellSize);
   },
 
   // ------------------------------------------------------------------
@@ -185,6 +495,7 @@ const App = {
     // エディタ再描画
     if (this.editorA) { this._setupEditorA(); }
     if (this.editorB && this.hasWaveB) { this._setupEditorB(); }
+    this._refreshActiveChoicesPanel();
   },
 
   // ------------------------------------------------------------------
@@ -295,14 +606,28 @@ const App = {
     document.getElementById('editorBSection').style.display  = this.hasWaveB ? 'block' : 'none';
     document.getElementById('addWaveBBtn').style.display     = this.hasWaveB ? 'none'  : 'inline-block';
 
+    // Type1/2/3 は単一波用（重ね合わせ不要）、Type4/5 は波 B 必須
+    // → 波 B の有無で利用可能な Type を切り替える
+    const cur = document.getElementById('problemType').value;
     if (this.hasWaveB) {
       this._setupEditorB();
+      document.getElementById('optType1').disabled = true;
+      document.getElementById('optType2').disabled = true;
+      document.getElementById('optType3').disabled = true;
       document.getElementById('optType4').disabled = false;
       document.getElementById('optType5').disabled = false;
+      // 単一波用 Type を選択中なら Type4 へ
+      if (cur === 'type1' || cur === 'type2' || cur === 'type3') {
+        document.getElementById('problemType').value = 'type4';
+        this._updateProblemTypeParams();
+      }
     } else {
+      document.getElementById('optType1').disabled = false;
+      document.getElementById('optType2').disabled = false;
+      document.getElementById('optType3').disabled = false;
       document.getElementById('optType4').disabled = true;
       document.getElementById('optType5').disabled = true;
-      const cur = document.getElementById('problemType').value;
+      // 重ね合わせ Type を選択中なら Type1 へ
       if (cur === 'type4' || cur === 'type5') {
         document.getElementById('problemType').value = 'type1';
         this._updateProblemTypeParams();
@@ -320,6 +645,7 @@ const App = {
     const prefix = waveName === 'A' ? 'waveA' : 'waveB';
     document.getElementById(`${prefix}DirRight`).classList.toggle('active', dir === 1);
     document.getElementById(`${prefix}DirLeft`).classList.toggle('active', dir === -1);
+    this._refreshActiveChoicesPanel();
   },
 
   // ------------------------------------------------------------------
@@ -333,6 +659,7 @@ const App = {
       this.waveB.clear();
       this.editorB && this.editorB.render();
     }
+    this._refreshActiveChoicesPanel();
   },
 
   // ------------------------------------------------------------------
@@ -341,9 +668,11 @@ const App = {
   _bindSpeedInputs() {
     document.getElementById('waveASpeed').addEventListener('change', e => {
       const v = parseFloat(e.target.value); this.waveA.speed = isNaN(v) ? 1 : v;
+      this._refreshActiveChoicesPanel();
     });
     document.getElementById('waveBSpeed').addEventListener('change', e => {
       const v = parseFloat(e.target.value); this.waveB.speed = isNaN(v) ? 1 : v;
+      this._refreshActiveChoicesPanel();
     });
   },
 
@@ -416,10 +745,34 @@ const App = {
       const el = document.getElementById(`params-${t}`);
       if (el) el.style.display = (t === type) ? 'flex' : 'none';
     });
+    // 選択肢セクションは Type3/Type4 のみ表示
+    ['type3', 'type4'].forEach(t => {
+      const sec = document.getElementById(`choices-${t}-section`);
+      if (sec) sec.style.display = (t === type) ? 'block' : 'none';
+      if (t === type) this._renderChoicesPanel(t);
+    });
   },
 
   onProblemTypeChange() {
     this._updateProblemTypeParams();
+  },
+
+  /**
+   * Type3/4 のパラメータ入力（x, tMax, answerT）に変更リスナーを付け、
+   * 選択肢パネルが有効な時はパネルを再描画する（正答プレビューと
+   * distractor エディタの gridConfig（tMax 反映）を更新するため）。
+   */
+  _bindChoicesParamRefresh() {
+    const refresh = (type) => () => {
+      if (this.choicesConfig[type].enabled) this._renderChoicesPanel(type);
+    };
+    const bind = (id, type) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('change', refresh(type));
+    };
+    bind('p3-x',       'type3');
+    bind('p3-tMax',    'type3');
+    bind('p4-answerT', 'type4');
   },
 
   // ------------------------------------------------------------------
@@ -484,9 +837,70 @@ const App = {
       return;
     }
 
+    // 選択肢モードが有効なら choices を構築
+    if ((type === 'type3' || type === 'type4') && this.choicesConfig[type].enabled) {
+      try {
+        result.choices = this._buildChoices(type, generator);
+      } catch (e) {
+        console.error(e);
+        alert('選択肢の生成中にエラーが発生しました: ' + e.message);
+        return;
+      }
+    }
+
     this.currentProblem = result;
     this._renderProblemOutput(result);
     document.getElementById('exportControls').style.display = 'flex';
+  },
+
+  /**
+   * 選択肢オブジェクトを構築
+   * 表示順は ① 正答 ② 不正解1 ③ 不正解2 ... の固定順
+   * シード値は (問題波形 + パラメータ + 選択肢数) のハッシュ
+   * @returns { items: [{canvas, isCorrect}], correctIndex: 0, seed: number, count: number }
+   */
+  _buildChoices(type, generator) {
+    const cfg = this.choicesConfig[type];
+    const items = [];
+
+    // ① 正答
+    const correctCanvas = this._renderCorrectChoiceCanvas(type);
+    if (!correctCanvas) {
+      throw new Error('正答 Canvas を生成できません。波形・パラメータを確認してください。');
+    }
+    items.push({ canvas: correctCanvas, isCorrect: true });
+
+    // ② 〜 不正解
+    cfg.distractors.forEach((distractorWave, i) => {
+      let canvas;
+      if (type === 'type3') {
+        const tMax = parseInt(document.getElementById('p3-tMax').value, 10);
+        canvas = generator.renderType3DistractorCanvas(distractorWave, tMax);
+      } else {
+        const t = parseInt(document.getElementById('p4-answerT').value, 10);
+        canvas = generator.renderType4DistractorCanvas(distractorWave, t);
+      }
+      items.push({ canvas, isCorrect: false });
+    });
+
+    // シード値: 問題波形 + 設問パラメータ + 選択肢数
+    const seedSource = this._buildChoicesSeedSource(type);
+    const seed = SeededRandom.hashString(seedSource);
+
+    return { items, correctIndex: 0, seed, count: cfg.count };
+  },
+
+  /** シード生成用の入力文字列（問題定義から決定論的に作る） */
+  _buildChoicesSeedSource(type) {
+    const cfg = this.choicesConfig[type];
+    if (type === 'type3') {
+      const x    = parseFloat(document.getElementById('p3-x').value);
+      const tMax = parseInt(document.getElementById('p3-tMax').value, 10);
+      return `t3|${JSON.stringify(this.waveA.toJSON())}|x=${x}|tMax=${tMax}|n=${cfg.count}`;
+    }
+    // type4
+    const t = parseInt(document.getElementById('p4-answerT').value, 10);
+    return `t4|A=${JSON.stringify(this.waveA.toJSON())}|B=${JSON.stringify(this.waveB.toJSON())}|t=${t}|n=${cfg.count}`;
   },
 
   // ------------------------------------------------------------------
@@ -508,6 +922,37 @@ const App = {
 
     this._appendCanvases(qSection, result.questionCanvases, 'q');
     container.appendChild(qSection);
+
+    // 選択肢セクション（画面表示は ① 正答 固定順）
+    if (result.choices) {
+      const cSection = document.createElement('div');
+      cSection.className = 'output-section';
+      cSection.innerHTML =
+        '<h3>【選択肢】</h3>' +
+        '<p class="answer-note">画面では ① が正答固定。PDF/ZIP DL 時はシード乱数でシャッフルされます。</p>';
+      const list = document.createElement('div');
+      list.className = 'choices-display';
+      result.choices.items.forEach((item, idx) => {
+        const block = document.createElement('div');
+        block.className = 'choice-display-item';
+        const lbl = document.createElement('div');
+        lbl.className = 'choice-display-label';
+        const num = document.createElement('span');
+        num.textContent = `選択肢 ${this._numToCircled(idx + 1)}`;
+        lbl.appendChild(num);
+        if (item.isCorrect) {
+          const badge = document.createElement('span');
+          badge.className = 'choice-display-correct';
+          badge.textContent = '正答';
+          lbl.appendChild(badge);
+        }
+        block.appendChild(lbl);
+        block.appendChild(item.canvas);
+        list.appendChild(block);
+      });
+      cSection.appendChild(list);
+      container.appendChild(cSection);
+    }
 
     // 解答セクション
     const aSection = document.createElement('div');
@@ -585,14 +1030,31 @@ const App = {
   // ------------------------------------------------------------------
   // エクスポート
   // ------------------------------------------------------------------
+  /**
+   * 選択肢を PDF 用にシャッフル + ラベル付け
+   * @param {boolean} showCorrect 正答に「★ 正答」マークを付けるか
+   * @returns シャッフル後の [{canvas, label, isCorrect, showCorrect}]
+   */
+  _buildPdfChoices(choices, showCorrect) {
+    const { shuffled } = Exporter.shuffleChoicesWithSeed(choices.items, choices.seed);
+    return shuffled.map((item, i) => ({
+      canvas:      item.canvas,
+      label:       this._numToCircled(i + 1),
+      isCorrect:   item.isCorrect,
+      showCorrect: showCorrect,
+    }));
+  },
+
   async exportProblemPDF() {
     if (!this.currentProblem) return;
     const r = this.currentProblem;
-    await Exporter.generatePDF(
-      '波の重ね合わせ 問題',
-      [{ label: '問題', text: r.questionText, canvases: r.questionCanvases }],
-      'wave_question.pdf'
-    );
+    const sections = [
+      { label: '問題', text: r.questionText, canvases: r.questionCanvases },
+    ];
+    if (r.choices) {
+      sections.push({ label: '選択肢', choices: this._buildPdfChoices(r.choices, false) });
+    }
+    await Exporter.generatePDF('波の重ね合わせ 問題', sections, 'wave_question.pdf');
   },
 
   async exportAnswerPDF() {
@@ -600,8 +1062,16 @@ const App = {
     const r = this.currentProblem;
     const sections = [
       { label: '問題', text: r.questionText, canvases: r.questionCanvases },
-      { label: '解答', text: r.answerText,   canvases: r.answerCanvases },
     ];
+    if (r.choices) {
+      // 解答PDFでは正答にマークを付ける
+      sections.push({ label: '選択肢（正答マーク付き）', choices: this._buildPdfChoices(r.choices, true) });
+      // 解答テキスト（シャッフル後の正答番号）
+      const { correctNewIndex } = Exporter.shuffleChoicesWithSeed(r.choices.items, r.choices.seed);
+      sections.push({ label: '解答', text: `正答: 選択肢 ${this._numToCircled(correctNewIndex + 1)}` });
+    } else {
+      sections.push({ label: '解答', text: r.answerText, canvases: r.answerCanvases });
+    }
     await Exporter.generatePDF('波の重ね合わせ 解答', sections, 'wave_answer.pdf');
   },
 
@@ -611,6 +1081,14 @@ const App = {
     const images = {};
     r.questionCanvases.forEach((c, i) => { images[`question_${i + 1}.png`] = c; });
     r.answerCanvases.forEach((c, i)   => { images[`answer_${i + 1}.png`]   = c; });
+    if (r.choices) {
+      const { shuffled, correctNewIndex } = Exporter.shuffleChoicesWithSeed(r.choices.items, r.choices.seed);
+      shuffled.forEach((item, i) => {
+        const num = i + 1;
+        const tag = (i === correctNewIndex) ? '_correct' : '';
+        images[`choice_${num}${tag}.png`] = item.canvas;
+      });
+    }
     await Exporter.generateZIP(images, 'wave_images.zip');
   },
 };

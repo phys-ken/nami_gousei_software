@@ -145,6 +145,14 @@ class Exporter {
         }
       }
 
+      // 選択肢（2列タイルレイアウト）
+      // section.choices = [{ canvas, label, isCorrect?, showCorrect? }]
+      if (section.choices && section.choices.length > 0) {
+        curY = Exporter._renderChoicesGridToPdf(
+          doc, section.choices, curY, margin, contentW, pageW, pageH, embedText, checkNewPage
+        );
+      }
+
       // 補足ノート
       if (section.note) {
         checkNewPage(8);
@@ -155,6 +163,67 @@ class Exporter {
     }
 
     doc.save(filename || 'wave.pdf');
+  }
+
+  /**
+   * 選択肢を 2 列タイルレイアウトで PDF に描画する
+   *
+   * @param choices [{ canvas, label, isCorrect?, showCorrect? }] 表示順（既にシャッフル済み）
+   * @returns 新しい curY
+   */
+  static _renderChoicesGridToPdf(doc, choices, startY, margin, contentW, pageW, pageH, embedText, checkNewPage) {
+    const COLUMNS  = 2;
+    const COL_GAP  = 6;
+    const ROW_GAP  = 4;
+    const LABEL_H  = 6;        // 選択肢ラベル「① ② ...」の高さ目安
+    const colW     = (contentW - COL_GAP * (COLUMNS - 1)) / COLUMNS;
+
+    let curY = startY;
+
+    for (let i = 0; i < choices.length; i += COLUMNS) {
+      // この行に入る選択肢を取得（最大 COLUMNS 個）
+      const rowItems = choices.slice(i, i + COLUMNS);
+      // 各 Canvas のアスペクト比から行高さを決定（行内の最大）
+      const rowH = Math.max(...rowItems.map(it => colW * (it.canvas.height / it.canvas.width))) + LABEL_H + 2;
+
+      checkNewPage(rowH + ROW_GAP);
+
+      rowItems.forEach((item, j) => {
+        const x = margin + j * (colW + COL_GAP);
+        // ラベル行
+        const labelText = item.showCorrect && item.isCorrect
+          ? `${item.label}  ★ 正答`
+          : item.label;
+        const lblCanvas = Exporter._textCanvas(labelText, { fontSize: 10, bold: true });
+        const lblImgH   = LABEL_H;
+        doc.addImage(lblCanvas.toDataURL('image/png'), 'PNG', x, curY, colW * 0.6, lblImgH);
+        // Canvas 画像
+        const imgData = item.canvas.toDataURL('image/png');
+        const imgH    = colW * (item.canvas.height / item.canvas.width);
+        doc.addImage(imgData, 'PNG', x, curY + lblImgH + 1, colW, imgH);
+      });
+
+      curY += rowH + ROW_GAP;
+    }
+
+    return curY;
+  }
+
+  /**
+   * シード値で再現可能なシャッフル後の配列を返す（SeededRandom 経由）
+   *
+   * @param {Array} items シャッフル前の配列（先頭が正答）
+   * @param {number} seed
+   * @returns {{shuffled: Array, correctNewIndex: number, indices: number[]}}
+   *   shuffled: 並べ替え後の配列
+   *   correctNewIndex: シャッフル後に正答が来たインデックス（元0番）
+   *   indices: 並べ替え後の i 番目が元の何番目だったか
+   */
+  static shuffleChoicesWithSeed(items, seed) {
+    const indices = SeededRandom.seededShuffleIndices(items.length, seed);
+    const shuffled = indices.map(i => items[i]);
+    const correctNewIndex = indices.indexOf(0);
+    return { shuffled, correctNewIndex, indices };
   }
 
   /**

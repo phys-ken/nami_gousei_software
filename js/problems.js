@@ -181,6 +181,121 @@ class ProblemGenerator {
   }
 
   // ================================================================
+  // 選択肢モード用ヘルパー（Type3 / Type4）
+  // ================================================================
+
+  /** Type3 の y-t グラフ用 gridConfig を返す */
+  _type3GridConfig(tMax) {
+    const gc = this.state.gridConfig;
+    const sc = this.state.styleConfig;
+    return {
+      xMin: 0, xMax: tMax,
+      yMin: gc.yMin, yMax: gc.yMax,
+      paddingLeft: 52, paddingRight: 52,
+      paddingTop: 32, paddingBottom: 44,
+      gridStyle: sc ? sc.grid : undefined,
+    };
+  }
+
+  /** Type3/y-t 用 Canvas のサイズ（横 580 固定、縦は cellSize.h を反映） */
+  _type3CanvasHeight() {
+    const cs = this.state.cellSize;
+    const gc = this.state.gridConfig;
+    return WaveRenderer.computeCanvasSize(
+      { xMin: gc.yMin, xMax: gc.yMax, yMin: gc.yMin, yMax: gc.yMax },
+      { w: null, h: cs ? cs.h : null }
+    ).height;
+  }
+
+  /**
+   * Type3 の正答 y-t グラフを描画した Canvas を返す
+   * （ProblemGenerator.generateType3 内のロジックを切り出し・再利用）
+   */
+  renderType3CorrectCanvas(wave, x, tMax) {
+    const ytConfig = this._type3GridConfig(tMax);
+    const h = this._type3CanvasHeight();
+    const canvas = this._makeCanvas(WaveRenderer.DEFAULT_DISP_W, h);
+    const r = new WaveRenderer(canvas, Object.assign({}, ytConfig, { pixelRatio: this.PR }));
+    r.clear();
+    r.drawGrid();
+    r.drawAxes({ xLabel: 't [s]', yLabel: 'y [cm]' });
+    r.drawTimeLabel(null, `x = ${x} [cm] の地点`);
+    const pts = [];
+    for (let ti = 0; ti <= tMax; ti += 0.05) {
+      pts.push({ x: ti, y: wave.getYAtTime(x, ti) });
+    }
+    pts.push({ x: tMax, y: wave.getYAtTime(x, tMax) });
+    r.drawWave(pts, this._styleSingle);
+    return canvas;
+  }
+
+  /**
+   * Type3 の不正解（distractor）を描画した Canvas を返す
+   * distractorWave は (t, y) 座標空間の頂点を持つ Wave
+   */
+  renderType3DistractorCanvas(distractorWave, tMax) {
+    const ytConfig = this._type3GridConfig(tMax);
+    const h = this._type3CanvasHeight();
+    const canvas = this._makeCanvas(WaveRenderer.DEFAULT_DISP_W, h);
+    const r = new WaveRenderer(canvas, Object.assign({}, ytConfig, { pixelRatio: this.PR }));
+    r.clear();
+    r.drawGrid();
+    r.drawAxes({ xLabel: 't [s]', yLabel: 'y [cm]' });
+    if (distractorWave && distractorWave.vertices.length > 0) {
+      // distractor は静的な折れ線（伝播しない）→ getSnapshot(_, _, 0) を使う
+      const pts = distractorWave.getSnapshot(0, tMax, 0);
+      r.drawWave(pts, this._styleSingle);
+    }
+    return canvas;
+  }
+
+  /**
+   * Type4 の正答（合成波のみ）を描画した Canvas を返す
+   * 凡例なし・合成波のみ（選択肢比較用）
+   */
+  renderType4CorrectCanvas(waveA, waveB, t) {
+    const canvas = this._makeCanvas();
+    const r = this._makeRenderer(canvas, {});
+    r.clear();
+    r.drawGrid();
+    r.drawAxes();
+    r.drawTimeLabel(t);
+    const { xMin, xMax } = r.config;
+
+    const xSet = new Set();
+    for (let xi = Math.floor(xMin); xi <= Math.ceil(xMax); xi++) xSet.add(xi);
+    const shiftA = waveA.direction * waveA.speed * t;
+    const shiftB = waveB.direction * waveB.speed * t;
+    waveA.vertices.forEach(v => xSet.add(v.x + shiftA));
+    waveB.vertices.forEach(v => xSet.add(v.x + shiftB));
+    const sumPts = [...xSet]
+      .sort((a, b) => a - b)
+      .filter(xi => xi >= xMin && xi <= xMax)
+      .map(xi => ({ x: xi, y: waveA.getYAtTime(xi, t) + waveB.getYAtTime(xi, t) }));
+    r.drawWave(sumPts, this._styleSum);
+    return canvas;
+  }
+
+  /**
+   * Type4 の不正解 Canvas（distractor の波形を合成波の代替として描画）
+   */
+  renderType4DistractorCanvas(distractorWave, t) {
+    const canvas = this._makeCanvas();
+    const r = this._makeRenderer(canvas, {});
+    r.clear();
+    r.drawGrid();
+    r.drawAxes();
+    r.drawTimeLabel(t);
+    if (distractorWave && distractorWave.vertices.length > 0) {
+      const { xMin, xMax } = r.config;
+      // distractor は静的な折れ線（伝播しない）→ t=0 として描画
+      const pts = distractorWave.getSnapshot(xMin, xMax, 0);
+      r.drawWave(pts, this._styleSum);
+    }
+    return canvas;
+  }
+
+  // ================================================================
   // Type 1: 指定時刻の y-x グラフ
   // ================================================================
   generateType1(params) {
