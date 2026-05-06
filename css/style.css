@@ -998,3 +998,85 @@ select:focus { outline: none; border-color: #1e3a5f; }
   display: flex;
   gap: 4px;
 }
+
+/* ============================================================
+   UI 改善（2026-05-07）
+   ============================================================ */
+
+/* グリッド適用ヒントテキスト */
+.apply-hint {
+  font-size: 10px;
+  color: #8a9aaa;
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+/* 波 A / 波 B セクション — ヘッダーを目立たせる */
+.wave-section > h3 {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: none;
+  color: #1e3a5f;
+  letter-spacing: 0.02em;
+  border-left: 3px solid #1e3a5f;
+  padding-left: 8px;
+  margin-bottom: 10px;
+}
+
+/* 描画スタイル見出し行（h3 + ⓘ を横並び） */
+.section-heading-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.section-heading-row > h3 {
+  margin-bottom: 0;
+}
+
+/* ⓘ ポップアップ（CSS only / checkbox トグル利用） */
+.info-toggle-input {
+  display: none;
+}
+
+.info-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid #1e3a5f;
+  background: #fff;
+  color: #1e3a5f;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: help;
+  user-select: none;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.info-icon-btn:hover {
+  background: #1e3a5f;
+  color: #fff;
+}
+.info-toggle-input:checked ~ .style-preset-row + * { /* unused */ }
+
+.info-inline-content {
+  display: none;
+  padding: 8px 10px;
+  background: #eef3fa;
+  border-radius: 5px;
+  border-left: 3px solid #1e3a5f;
+  margin-bottom: 8px;
+  font-size: 11px;
+  line-height: 1.7;
+  color: #333;
+}
+.info-inline-content p { margin-bottom: 2px; }
+.info-inline-content p:last-child { margin-bottom: 0; }
+.info-inline-content strong { color: #1e3a5f; }
+
+.info-toggle-input:checked + .info-inline-content {
+  display: block;
+}
