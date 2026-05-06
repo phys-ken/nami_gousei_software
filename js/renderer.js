@@ -293,6 +293,56 @@ class WaveRenderer {
   }
 
   /**
+   * 媒質の端より先（波が存在しない側）を薄灰色で塗る（反射波モード用）
+   * drawGrid() より前に呼び出すこと（グリッド線が灰色の上に描かれる）
+   * @param {number} boundary  媒質の端 x 座標
+   * @param {number} direction 入射波の向き (+1=右向き, -1=左向き)
+   *   +1 → boundary より右側を塗る
+   *   -1 → boundary より左側を塗る
+   */
+  drawBeyondMediumRegion(boundary, direction) {
+    const c   = this.config;
+    const ctx = this.ctx;
+    const { px: bPx }    = this.toPixel(boundary, 0);
+    const { px: xLeft }  = this.toPixel(c.xMin, 0);
+    const { px: xRight } = this.toPixel(c.xMax, 0);
+    const { py: yTop }   = this.toPixel(0, c.yMax);
+    const { py: yBot }   = this.toPixel(0, c.yMin);
+    ctx.save();
+    ctx.fillStyle = '#D0D0D0';
+    if (direction > 0) {
+      ctx.fillRect(bPx, yTop, xRight - bPx, yBot - yTop);
+    } else {
+      ctx.fillRect(xLeft, yTop, bPx - xLeft, yBot - yTop);
+    }
+    ctx.restore();
+  }
+
+  /** 媒質の端を縦の破線で描画（反射波モード用） */
+  drawBoundaryLine(xBoundary) {
+    const c   = this.config;
+    const ctx = this.ctx;
+    const { px }     = this.toPixel(xBoundary, 0);
+    const { py: topPy } = this.toPixel(xBoundary, c.yMax);
+    const { py: botPy } = this.toPixel(xBoundary, c.yMin);
+    ctx.save();
+    ctx.strokeStyle = '#333333';
+    ctx.lineWidth   = 2;
+    ctx.setLineDash([10, 5]);
+    ctx.beginPath();
+    ctx.moveTo(px, topPy);
+    ctx.lineTo(px, botPy);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle    = '#333333';
+    ctx.font         = '10px sans-serif';
+    ctx.textAlign    = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('媒質の端', px + 3, topPy + 1);
+    ctx.restore();
+  }
+
+  /**
    * 凡例を「グラフ下の余白」に描画（波形と被らない）
    * @param {Array} items [{label, dashed, dashPattern, lineWidth}]
    */

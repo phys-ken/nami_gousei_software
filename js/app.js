@@ -15,15 +15,23 @@ const App = {
   styleMode: 'gray',         // 'gray' | 'bw' | 'custom'
   currentProblem: null,
 
-  // 選択肢モード設定（Type3 / Type4 のみ対象）
+  // 選択肢モード設定（Type3 / Type4 / Type6 対象）
   // distractors[] には Wave インスタンスが入る（count - 1 個、正答は別途自動生成）
   // source は将来 'auto'（自動生成）を追加できるように布石
   choicesConfig: {
     type3: { enabled: false, count: 6, source: 'manual', distractors: [] },
     type4: { enabled: false, count: 6, source: 'manual', distractors: [] },
+    type6: { enabled: false, count: 4, source: 'manual', distractors: [] },
   },
   // 選択肢エディタ用 WaveEditor インスタンスを保持（再生成時のクリーンアップ用）
-  _choiceEditors: { type3: [], type4: [] },
+  _choiceEditors: { type3: [], type4: [], type6: [] },
+
+  // 反射波モード設定
+  reflectionConfig: {
+    enabled:  false,
+    boundary: 5,      // 媒質の端 x 座標
+    endType:  'free', // 'free'（自由端）| 'fixed'（固定端）
+  },
 
   // ------------------------------------------------------------------
   // 初期化
@@ -39,6 +47,7 @@ const App = {
     this._loadStyleConfig();
     this._loadCellSize();
     this._loadChoicesConfig();
+    this._loadReflectionConfig();
     this._syncPresetButtons();
     this._syncGridInputs();
     this._syncCellSizeInputs();
@@ -89,7 +98,7 @@ const App = {
   /** 現在選択中の Type の選択肢パネルを再描画（gridConfig や style の変更を反映） */
   _refreshActiveChoicesPanel() {
     const type = document.getElementById('problemType').value;
-    if ((type === 'type3' || type === 'type4') && this.choicesConfig[type].enabled) {
+    if (['type3', 'type4', 'type6'].includes(type) && this.choicesConfig[type]?.enabled) {
       this._renderChoicesPanel(type);
     }
   },
@@ -157,7 +166,7 @@ const App = {
       const saved = localStorage.getItem('waveapp_choicesConfig');
       if (!saved) return;
       const obj = JSON.parse(saved);
-      ['type3', 'type4'].forEach(t => {
+      ['type3', 'type4', 'type6'].forEach(t => {
         const c = obj[t];
         if (!c) return;
         this.choicesConfig[t].enabled = !!c.enabled;
@@ -171,7 +180,7 @@ const App = {
   _saveChoicesConfig() {
     try {
       const out = {};
-      ['type3', 'type4'].forEach(t => {
+      ['type3', 'type4', 'type6'].forEach(t => {
         const c = this.choicesConfig[t];
         out[t] = {
           enabled: c.enabled,
@@ -389,6 +398,15 @@ const App = {
       if (!isNaN(sa)) this.waveA.speed = sa;
       if (!isNaN(sb)) this.waveB.speed = sb;
       return gen.renderType4CorrectCanvas(this.waveA, this.waveB, t);
+    } else if (type === 'type6') {
+      if (!this.reflectionConfig.enabled || this.waveA.vertices.length === 0) return null;
+      const t = parseInt(document.getElementById('t6-answer').value, 10);
+      if (isNaN(t) || t < 1) return null;
+      const sa = parseFloat(document.getElementById('waveASpeed').value);
+      if (!isNaN(sa)) this.waveA.speed = sa;
+      return gen.renderType6CorrectCanvas(
+        this.waveA, this.reflectionConfig.boundary, this.reflectionConfig.endType, t
+      );
     }
     return null;
   },
@@ -417,7 +435,7 @@ const App = {
   /**
    * distractor エディタの gridConfig
    * Type3: y-t グラフ → x軸=t [0, tMax], y軸=メイングリッドの yMin/yMax
-   * Type4: y-x グラフ → メイングリッドと同じ
+   * Type4/Type6: y-x グラフ → メイングリッドと同じ
    */
   _distractorGridConfig(type) {
     if (type === 'type3') {
@@ -575,9 +593,13 @@ const App = {
   _setupEditorA() {
     const canvas = document.getElementById('editorCanvasA');
     this._applyEditorCanvasSize(canvas);
+    const extra = this.reflectionConfig.enabled ? {
+      boundary:          this.reflectionConfig.boundary,
+      boundaryDirection: this.waveA.direction,
+    } : {};
     const renderer = new WaveRenderer(canvas, Object.assign({}, this.gridConfig, {
       gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
-    }));
+    }, extra));
     if (this.editorA) {
       // グリッド設定変更時: レンダラだけ差し替えて再描画（DOM 操作不要）
       this.editorA.renderer = renderer;
@@ -605,38 +627,127 @@ const App = {
   // 波 B の追加 / 削除
   // ------------------------------------------------------------------
   toggleWaveB() {
+    // 反射波モードが有効な状態で波Bを追加しようとする場合は反射モードを先に無効化
+    if (!this.hasWaveB && this.reflectionConfig.enabled) {
+      this._toggleReflectionMode(false);
+    }
     this.hasWaveB = !this.hasWaveB;
     document.getElementById('waveBSection').style.display    = this.hasWaveB ? 'block' : 'none';
     document.getElementById('editorBSection').style.display  = this.hasWaveB ? 'block' : 'none';
     document.getElementById('addWaveBBtn').style.display     = this.hasWaveB ? 'none'  : 'inline-block';
+    if (this.hasWaveB) this._setupEditorB();
+    this._updateProblemTypeGating();
+  },
 
-    // Type1/2/3 は単一波用（重ね合わせ不要）、Type4/5 は波 B 必須
-    // → 波 B の有無で利用可能な Type を切り替える
-    const cur = document.getElementById('problemType').value;
-    if (this.hasWaveB) {
-      this._setupEditorB();
-      document.getElementById('optType1').disabled = true;
-      document.getElementById('optType2').disabled = true;
-      document.getElementById('optType3').disabled = true;
-      document.getElementById('optType4').disabled = false;
-      document.getElementById('optType5').disabled = false;
-      // 単一波用 Type を選択中なら Type4 へ
-      if (cur === 'type1' || cur === 'type2' || cur === 'type3') {
-        document.getElementById('problemType').value = 'type4';
-        this._updateProblemTypeParams();
-      }
-    } else {
-      document.getElementById('optType1').disabled = false;
-      document.getElementById('optType2').disabled = false;
-      document.getElementById('optType3').disabled = false;
-      document.getElementById('optType4').disabled = true;
-      document.getElementById('optType5').disabled = true;
-      // 重ね合わせ Type を選択中なら Type1 へ
-      if (cur === 'type4' || cur === 'type5') {
-        document.getElementById('problemType').value = 'type1';
-        this._updateProblemTypeParams();
-      }
+  // ------------------------------------------------------------------
+  // 反射波モード
+  // ------------------------------------------------------------------
+
+  /** 反射波モードを有効 / 無効にする */
+  _toggleReflectionMode(enable) {
+    // 波Bが有効な状態で反射モードを有効化しようとする場合は波Bを先に無効化
+    if (enable && this.hasWaveB) {
+      this.hasWaveB = false;
+      document.getElementById('waveBSection').style.display   = 'none';
+      document.getElementById('editorBSection').style.display = 'none';
+      document.getElementById('addWaveBBtn').style.display    = 'inline-block';
     }
+    this.reflectionConfig.enabled = enable;
+
+    const section = document.getElementById('reflectionSection');
+    const addBtn  = document.getElementById('addReflectionBtn');
+    if (section) section.style.display = enable ? 'block' : 'none';
+    if (addBtn)  addBtn.style.display  = enable ? 'none'  : 'inline-block';
+
+    this._updateProblemTypeGating();
+    this._setupEditorA();    // 境界線の有無を反映
+    this._saveReflectionConfig();
+  },
+
+  /**
+   * タイプ選択肢の disabled 状態を一括更新（モード変更時に呼ぶ）
+   * ・通常モード: type1/2/3 有効、type4/5/6/7 無効
+   * ・波Bモード: type4/5 有効、type1/2/3/6/7 無効
+   * ・反射波モード: type6/7 有効、type1/2/3/4/5 無効
+   */
+  _updateProblemTypeGating() {
+    const hasWaveB   = this.hasWaveB;
+    const reflActive = this.reflectionConfig.enabled;
+
+    const setDisabled = (id, disabled) => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = disabled;
+    };
+    setDisabled('optType1', hasWaveB || reflActive);
+    setDisabled('optType2', hasWaveB || reflActive);
+    setDisabled('optType3', hasWaveB || reflActive);
+    setDisabled('optType4', !hasWaveB);
+    setDisabled('optType5', !hasWaveB);
+    setDisabled('optType6', !reflActive);
+    setDisabled('optType7', !reflActive);
+
+    // 現在選択中のタイプが使えなくなる場合は適切なタイプへ切り替える
+    const cur = document.getElementById('problemType').value;
+    const unavailable =
+      ((!hasWaveB && !reflActive) && (cur === 'type4' || cur === 'type5')) ||
+      (!hasWaveB && (cur === 'type4' || cur === 'type5')) ||
+      (!reflActive && (cur === 'type6' || cur === 'type7')) ||
+      ((hasWaveB || reflActive) && (cur === 'type1' || cur === 'type2' || cur === 'type3'));
+    if (unavailable) {
+      const newType = reflActive ? 'type6' : (hasWaveB ? 'type4' : 'type1');
+      document.getElementById('problemType').value = newType;
+      this._updateProblemTypeParams();
+    }
+  },
+
+  /** 反射設定を localStorage から復元してUIに反映 */
+  _loadReflectionConfig() {
+    try {
+      const saved = localStorage.getItem('waveapp_reflectionConfig');
+      if (saved) {
+        const obj = JSON.parse(saved);
+        if (typeof obj.boundary === 'number') this.reflectionConfig.boundary = obj.boundary;
+        if (obj.endType === 'free' || obj.endType === 'fixed') this.reflectionConfig.endType = obj.endType;
+        if (obj.enabled) this._toggleReflectionMode(true);
+      }
+    } catch (_) {}
+    // UI 同期（enabled 未設定のときも境界値・反射タイプ表示を揃える）
+    const bEl = document.getElementById('reflBoundary');
+    if (bEl) bEl.value = this.reflectionConfig.boundary;
+    const freeBtn  = document.getElementById('reflFreeBtn');
+    const fixedBtn = document.getElementById('reflFixedBtn');
+    if (freeBtn)  freeBtn.classList.toggle('active',  this.reflectionConfig.endType === 'free');
+    if (fixedBtn) fixedBtn.classList.toggle('active', this.reflectionConfig.endType === 'fixed');
+  },
+
+  _saveReflectionConfig() {
+    try {
+      localStorage.setItem('waveapp_reflectionConfig', JSON.stringify({
+        enabled:  this.reflectionConfig.enabled,
+        boundary: this.reflectionConfig.boundary,
+        endType:  this.reflectionConfig.endType,
+      }));
+    } catch (_) {}
+  },
+
+  /** 媒質の端の位置が変更されたとき */
+  onReflBoundaryChange() {
+    const v = parseFloat(document.getElementById('reflBoundary').value);
+    if (!isNaN(v)) {
+      this.reflectionConfig.boundary = v;
+      this._setupEditorA();
+      this._saveReflectionConfig();
+      this._refreshActiveChoicesPanel();
+    }
+  },
+
+  /** 反射タイプ（自由端 / 固定端）が変更されたとき */
+  setReflEndType(endType) {
+    this.reflectionConfig.endType = endType;
+    document.getElementById('reflFreeBtn').classList.toggle('active',  endType === 'free');
+    document.getElementById('reflFixedBtn').classList.toggle('active', endType === 'fixed');
+    this._saveReflectionConfig();
+    this._refreshActiveChoicesPanel();
   },
 
   // ------------------------------------------------------------------
@@ -649,6 +760,8 @@ const App = {
     const prefix = waveName === 'A' ? 'waveA' : 'waveB';
     document.getElementById(`${prefix}DirRight`).classList.toggle('active', dir === 1);
     document.getElementById(`${prefix}DirLeft`).classList.toggle('active', dir === -1);
+    // 反射モード中は入射波の向きが変わるためエディタのグレー領域も更新
+    if (waveName === 'A' && this.reflectionConfig.enabled) this._setupEditorA();
     this._refreshActiveChoicesPanel();
   },
 
@@ -700,6 +813,32 @@ const App = {
     const container = document.getElementById('previewContainer');
     container.innerHTML = '';
 
+    const PR = 2;
+
+    // 反射波モード時は ProblemGenerator の描画ヘルパーを使う
+    if (this.reflectionConfig.enabled) {
+      const gen = new ProblemGenerator({
+        gridConfig:  this.gridConfig,
+        styleConfig: this.styleConfig,
+        cellSize:    this.cellSize,
+      });
+      for (let t = 0; t <= tMax; t++) {
+        const canvas = gen._renderReflectionCanvas(
+          this.waveA, this.reflectionConfig.boundary, this.reflectionConfig.endType, t
+        );
+        const dlBtn = document.createElement('button');
+        dlBtn.textContent = `t=${t}s PNG`;
+        dlBtn.className   = 'dl-btn';
+        dlBtn.onclick = () => Exporter.downloadCanvasPNG(canvas, `wave_t${t}.png`);
+        const row = document.createElement('div');
+        row.className = 'preview-row';
+        row.appendChild(canvas);
+        row.appendChild(dlBtn);
+        container.appendChild(row);
+      }
+      return;
+    }
+
     const waves  = this.hasWaveB ? [this.waveA, this.waveB] : [this.waveA];
     const sc = this.styleConfig;
     const styles = this.hasWaveB
@@ -707,7 +846,6 @@ const App = {
       : [sc.waveSingle];
 
     const size = WaveRenderer.computeCanvasSize(this.gridConfig, this.cellSize);
-    const PR   = 2;
 
     for (let t = 0; t <= tMax; t++) {
       const canvas = document.createElement('canvas');
@@ -745,12 +883,12 @@ const App = {
   // ------------------------------------------------------------------
   _updateProblemTypeParams() {
     const type = document.getElementById('problemType').value;
-    ['type1', 'type2', 'type3', 'type4', 'type5'].forEach(t => {
+    ['type1', 'type2', 'type3', 'type4', 'type5', 'type6', 'type7'].forEach(t => {
       const el = document.getElementById(`params-${t}`);
       if (el) el.style.display = (t === type) ? 'flex' : 'none';
     });
-    // 選択肢セクションは Type3/Type4 のみ表示
-    ['type3', 'type4'].forEach(t => {
+    // 選択肢セクションは Type3/Type4/Type6 のみ表示
+    ['type3', 'type4', 'type6'].forEach(t => {
       const sec = document.getElementById(`choices-${t}-section`);
       if (sec) sec.style.display = (t === type) ? 'block' : 'none';
       if (t === type) this._renderChoicesPanel(t);
@@ -777,6 +915,7 @@ const App = {
     bind('p3-x',       'type3');
     bind('p3-tMax',    'type3');
     bind('p4-answerT', 'type4');
+    bind('t6-answer',  'type6');
   },
 
   // ------------------------------------------------------------------
@@ -796,7 +935,7 @@ const App = {
     }
 
     const type = document.getElementById('problemType').value;
-    const hasChoices = (type === 'type3' || type === 'type4') && !!this.choicesConfig[type]?.enabled;
+    const hasChoices = ['type3', 'type4', 'type6'].includes(type) && !!this.choicesConfig[type]?.enabled;
     const generator = new ProblemGenerator({
       gridConfig:  this.gridConfig,
       styleConfig: this.styleConfig,
@@ -806,8 +945,8 @@ const App = {
 
     let result;
     try {
-      const _int  = (id, def) => { const v = parseInt(document.getElementById(id).value, 10);  return isNaN(v) ? def : v; };
-      const _float = (id, def) => { const v = parseFloat(document.getElementById(id).value);      return isNaN(v) ? def : v; };
+      const _int   = (id, def) => { const v = parseInt(document.getElementById(id).value, 10); return isNaN(v) ? def : v; };
+      const _float = (id, def) => { const v = parseFloat(document.getElementById(id).value);    return isNaN(v) ? def : v; };
 
       if (type === 'type1') {
         const answerT = _int('p1-answerT', 2);
@@ -836,6 +975,32 @@ const App = {
         const tEnd   = _int('p5-tEnd',   5);
         if (tEnd <= tStart) { alert('終了時刻は開始時刻より大きくしてください。'); return; }
         result = generator.generateType5({ waveA: this.waveA, waveB: this.waveB, tStart, tEnd });
+      } else if (type === 'type6') {
+        if (!this.reflectionConfig.enabled) { alert('反射波モードが有効ではありません。'); return; }
+        const answerT = _int('t6-answer', 3);
+        result = generator.generateType6({
+          waveA:        this.waveA,
+          boundary:     this.reflectionConfig.boundary,
+          endType:      this.reflectionConfig.endType,
+          answerT,
+          choicesConfig: hasChoices ? this.choicesConfig.type6 : null,
+        });
+        // Type6 の選択肢はgenerateType6 内で構築済み。シード値をここで付与する
+        if (result.choices) {
+          result.choices.seed = SeededRandom.hashString(this._buildChoicesSeedSource('type6'));
+        }
+      } else if (type === 'type7') {
+        if (!this.reflectionConfig.enabled) { alert('反射波モードが有効ではありません。'); return; }
+        const tStart = _int('t7-start', 1);
+        const tEnd   = _int('t7-end',   5);
+        if (tEnd <= tStart) { alert('終了時刻は開始時刻より大きくしてください。'); return; }
+        result = generator.generateType7({
+          waveA:    this.waveA,
+          boundary: this.reflectionConfig.boundary,
+          endType:  this.reflectionConfig.endType,
+          tStart,
+          tEnd,
+        });
       }
     } catch (e) {
       console.error(e);
@@ -843,8 +1008,8 @@ const App = {
       return;
     }
 
-    // 選択肢モードが有効なら choices を構築
-    if ((type === 'type3' || type === 'type4') && this.choicesConfig[type].enabled) {
+    // 選択肢モードが有効なら choices を構築（Type6 は generateType6 内で構築済み）
+    if (['type3', 'type4'].includes(type) && this.choicesConfig[type].enabled) {
       try {
         result.choices = this._buildChoices(type, generator);
       } catch (e) {
@@ -903,6 +1068,10 @@ const App = {
       const x    = parseFloat(document.getElementById('p3-x').value);
       const tMax = parseInt(document.getElementById('p3-tMax').value, 10);
       return `t3|${JSON.stringify(this.waveA.toJSON())}|x=${x}|tMax=${tMax}|n=${cfg.count}`;
+    }
+    if (type === 'type6') {
+      const t = parseInt(document.getElementById('t6-answer').value, 10);
+      return `t6|A=${JSON.stringify(this.waveA.toJSON())}|b=${this.reflectionConfig.boundary}|e=${this.reflectionConfig.endType}|t=${t}|n=${cfg.count}`;
     }
     // type4
     const t = parseInt(document.getElementById('p4-answerT').value, 10);
@@ -985,13 +1154,15 @@ const App = {
     this._appendCanvases(aSection, mainAnswerCanvases, 'a');
     container.appendChild(aSection);
 
-    // Type3: 解説セクション（各時刻の y-x グラフ + 地点マーカー）
+    // 解説セクション（Type3: y-x スナップショット列 / Type6: 各時刻の反射波合成）
     if (result.refCanvases && result.refCanvases.length > 0) {
       const refSection = document.createElement('div');
       refSection.className = 'output-section';
+      const refTitle = result.refSectionTitle || '【解説】各時刻の波形と観測地点';
+      const refNote  = result.refSectionNote  || '各コマの ● の高さを読み取り、y−t グラフの対応する t の列にプロットしてください。';
       refSection.innerHTML =
-        '<h3>【解説】各時刻の波形と観測地点</h3>' +
-        '<p class="answer-note">各コマの ● の高さを読み取り、y−t グラフの対応する t の列にプロットしてください。</p>';
+        `<h3>${refTitle}</h3>` +
+        `<p class="answer-note">${refNote}</p>`;
 
       const grid = document.createElement('div');
       grid.className = 'ref-canvas-grid';

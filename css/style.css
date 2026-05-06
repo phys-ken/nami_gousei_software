@@ -872,6 +872,23 @@ select:focus { outline: none; border-color: #1e3a5f; }
 }
 
 /* ============================================================
+   反射波設定セクション — ヘッダー行（見出し＋削除ボタンを横並び）
+   ============================================================ */
+.settings-group-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.settings-group-header-row h3 {
+  margin-bottom: 0;
+}
+.btn-sm {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+/* ============================================================
    スクロールバー調整
    ============================================================ */
 ::-webkit-scrollbar { width: 6px; height: 6px; }

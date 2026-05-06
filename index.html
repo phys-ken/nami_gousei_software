@@ -120,6 +120,31 @@
       <button id="addWaveBBtn" class="btn-ghost" onclick="App.toggleWaveB()">＋ 波 B を追加</button>
     </div>
 
+    <!-- 反射波モード追加ボタン -->
+    <div class="settings-group">
+      <button id="addReflectionBtn" class="btn-ghost" onclick="App._toggleReflectionMode(true)">＋ 反射波モードを追加</button>
+    </div>
+
+    <!-- 反射波設定セクション（初期は非表示） -->
+    <div class="settings-group" id="reflectionSection" style="display:none">
+      <div class="settings-group-header-row">
+        <h3>反射波設定</h3>
+        <button class="btn-secondary btn-sm" onclick="App._toggleReflectionMode(false)">削除</button>
+      </div>
+      <div class="setting-row">
+        <label>媒質の端 x =</label>
+        <input type="number" id="reflBoundary" value="5" min="0" step="0.5"
+               style="width:60px" onchange="App.onReflBoundaryChange()">
+      </div>
+      <div class="setting-row">
+        <label>反射の種類</label>
+        <div class="dir-group">
+          <button id="reflFreeBtn"  class="dir-btn active" onclick="App.setReflEndType('free')">自由端</button>
+          <button id="reflFixedBtn" class="dir-btn"        onclick="App.setReflEndType('fixed')">固定端</button>
+        </div>
+      </div>
+    </div>
+
   </aside>
 
   <!-- ========================================================
@@ -196,6 +221,8 @@
               <option id="optType3" value="type3">Type 3 &nbsp;— x = ○ cm の地点の y-t グラフ</option>
               <option id="optType4" value="type4" disabled>Type 4 &nbsp;— 合成波（指定時刻・波 B が必要）</option>
               <option id="optType5" value="type5" disabled>Type 5 &nbsp;— 複数時刻の合成波（範囲指定・波 B が必要）</option>
+              <option id="optType6" value="type6" disabled>Type 6 &nbsp;— 反射波の合成（指定時刻・選択肢対応）</option>
+              <option id="optType7" value="type7" disabled>Type 7 &nbsp;— 反射波の合成（複数時刻）</option>
             </select>
           </div>
 
@@ -299,6 +326,51 @@
             <label>
               終了時刻 &nbsp;t =
               <input type="number" id="p5-tEnd" value="5" min="1" max="20">
+              秒
+            </label>
+          </div>
+
+          <!-- Type 6 パラメータ -->
+          <div id="params-type6" class="problem-params">
+            <label>
+              解答時刻 &nbsp;t =
+              <input type="number" id="t6-answer" value="3" min="1" max="20">
+              秒
+            </label>
+          </div>
+
+          <!-- Type 6 選択肢モード -->
+          <div id="choices-type6-section" class="choices-section" style="display:none">
+            <div class="choices-toggle-row">
+              <button id="choices-type6-toggle" class="toggle-btn" onclick="App.toggleChoicesMode('type6')">
+                <span class="toggle-knob"></span>
+                <span class="toggle-label">選択肢モード</span>
+              </button>
+              <span class="choices-status" id="choices-type6-status"></span>
+            </div>
+            <div id="choices-type6-panel" class="choices-panel" style="display:none">
+              <div class="choices-panel-header">
+                <label>
+                  選択肢数:
+                  <input type="number" id="choices-type6-count" value="4" min="2" max="10"
+                         onchange="App.onChoicesCountChange('type6')" class="choices-count-input">
+                </label>
+                <span class="choices-hint">選択肢① は正答（合成波・自動生成）。選択肢② 以降に間違いの合成波を描いてください。</span>
+              </div>
+              <div id="choices-type6-list" class="choices-list"></div>
+            </div>
+          </div>
+
+          <!-- Type 7 パラメータ -->
+          <div id="params-type7" class="problem-params">
+            <label>
+              開始時刻 &nbsp;t =
+              <input type="number" id="t7-start" value="1" min="0" max="20">
+              秒
+            </label>
+            <label>
+              終了時刻 &nbsp;t =
+              <input type="number" id="t7-end" value="5" min="1" max="20">
               秒
             </label>
           </div>

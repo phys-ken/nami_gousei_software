@@ -121,6 +121,40 @@ describe('Wave.getY', () => {
     assert.equal(w.getY(2), 1);    // 上昇斜面の中点
     assert.equal(w.getY(6), 1);    // 下降斜面の中点
   });
+
+  // ── 端部ランプ（Plan A: getSnapshot の視覚表示との整合）───────────────
+  it('左端ランプ: [first.x-1, first.x) で 0→first.y に線形補間する', () => {
+    // 頂点が x=2(y=2) から始まる波。x=1〜2 がランプ領域
+    const w = makeWave([[2, 2], [4, 0]]);
+    assert.equal(w.getY(1),   0);    // ランプ開始点 (x=first.x-1) → 0
+    assert.equal(w.getY(1.5), 1);    // ランプ中点 → 1
+    assert.equal(w.getY(2),   2);    // 頂点 → first.y
+  });
+
+  it('右端ランプ: (last.x, last.x+1] で last.y→0 に線形補間する', () => {
+    // 頂点が x=2(y=0) 〜 x=4(y=2) で終わる波。x=4〜5 がランプ領域
+    const w = makeWave([[2, 0], [4, 2]]);
+    assert.equal(w.getY(4),   2);    // 最終頂点 → last.y
+    assert.equal(w.getY(4.5), 1);    // ランプ中点 → 1
+    assert.equal(w.getY(5),   0);    // ランプ終端 (x=last.x+1) → 0
+  });
+
+  it('ランプ範囲外はまだ 0 を返す', () => {
+    const w = makeWave([[3, 1], [6, 1]]);
+    assert.equal(w.getY(1), 0);  // x=1 < first.x-1=2
+    assert.equal(w.getY(9), 0);  // x=9 > last.x+1=7
+  });
+
+  it('y-t グラフと y-x グラフの整合: 端部ランプにより急落が生じない', () => {
+    // 頂点 x=2(y=2), x=4(y=0) の波が右向き速さ1で進む
+    // 観測点 x=3 での y-t グラフ: getYAtTime(3,t) = getY(3-t)
+    // t=1: getY(2)=2(ピーク), t=1.5: getY(1.5)=1(ランプ), t=2: getY(1)=0(ランプ終端)
+    const w = makeWave([[2, 2], [4, 0]], 1, 1);
+    assert.equal(w.getYAtTime(3, 1),   2);  // ピーク到達
+    assert.equal(w.getYAtTime(3, 1.5), 1);  // ランプ（急落なし）
+    assert.equal(w.getYAtTime(3, 2),   0);  // ランプ終端
+    assert.equal(w.getYAtTime(3, 2.1), 0);  // 範囲外
+  });
 });
 
 // ── getYAtTime ─────────────────────────────────────────────────────────

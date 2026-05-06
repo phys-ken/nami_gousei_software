@@ -121,6 +121,7 @@ class WaveEditor {
     const r = this.renderer;
     const c = r.config;
     r.clear();
+    if (c.boundary != null) r.drawBeyondMediumRegion(c.boundary, c.boundaryDirection || 1);
     r.drawGrid();
 
     // ドラッグ中: アクティブ列をハイライト
@@ -137,6 +138,7 @@ class WaveEditor {
     }
 
     r.drawAxes();
+    if (r.config.boundary != null) r.drawBoundaryLine(r.config.boundary);
 
     // 波形
     if (this.wave.vertices.length > 0) {

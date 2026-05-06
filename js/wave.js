@@ -50,11 +50,17 @@ class Wave {
     if (this.vertices.length === 0) return 0;
 
     const first = this.vertices[0];
-    const last = this.vertices[this.vertices.length - 1];
+    const last  = this.vertices[this.vertices.length - 1];
 
-    if (x < first.x || x > last.x) return 0;
+    // 端部ランプ: getSnapshot の視覚表示（隣接格子点 y=0 との折れ線）と整合させる。
+    // 左端 [first.x-1, first.x): 0 → first.y の線形補間
+    // 右端 (last.x,  last.x+1]: last.y → 0 の線形補間
+    if (x < first.x - 1 || x > last.x + 1) return 0;
+    if (x < first.x) return (x - (first.x - 1)) * first.y;
+    if (x > last.x)  return (last.x + 1 - x)    * last.y;
+
     if (x === first.x) return first.y;
-    if (x === last.x) return last.y;
+    if (x === last.x)  return last.y;
 
     for (let i = 0; i < this.vertices.length - 1; i++) {
       const a = this.vertices[i];

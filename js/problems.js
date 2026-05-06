@@ -494,4 +494,249 @@ class ProblemGenerator {
       answerValue: null,
     };
   }
+
+  // ================================================================
+  // 反射波ヘルパー（Type6 / Type7 共通）
+  // ================================================================
+
+  /**
+   * 入射波から反射波（仮想 Wave オブジェクト）を生成する。
+   * 自由端: x → 2*boundary - x, y 同符号
+   * 固定端: x → 2*boundary - x, y 反転
+   */
+  _buildReflectedWave(incidentWave, boundary, endType) {
+    const w   = new Wave();
+    w.speed     = incidentWave.speed;
+    w.direction = -incidentWave.direction;
+    const sign  = endType === 'fixed' ? -1 : 1;
+    for (const v of incidentWave.vertices) {
+      w.setVertex(2 * boundary - v.x, sign * v.y);
+    }
+    return w;
+  }
+
+  /**
+   * 反射波問題の Canvas を描画して返す。
+   *
+   * @param {Wave}   incidentWave 入射波
+   * @param {number} boundary     媒質の端 x 座標
+   * @param {string} endType      'free' | 'fixed'
+   * @param {number} t            時刻
+   * @param {Object} opts
+   *   showIncident  {boolean} デフォルト true
+   *   showReflected {boolean} デフォルト true
+   *   showSum       {boolean} デフォルト true
+   *   isBlank       {boolean} true = 解答欄（波なし）
+   *   timeLabel     {string}  カスタムラベル（省略時 "t = N [s]"）
+   */
+  _renderReflectionCanvas(incidentWave, boundary, endType, t, opts = {}) {
+    const {
+      showIncident  = true,
+      showReflected = true,
+      showSum       = true,
+      isBlank       = false,
+      timeLabel,
+    } = opts;
+
+    const canvas = this._makeCanvas();
+    const r      = this._makeRenderer(canvas, {});
+    r.clear();
+    r.drawBeyondMediumRegion(boundary, incidentWave.direction);  // 媒質の奥を灰色塗り
+    r.drawGrid();
+    r.drawAxes();
+    r.drawTimeLabel(null, timeLabel !== undefined ? timeLabel : `t = ${t} [s]`);
+    r.drawBoundaryLine(boundary);
+
+    if (isBlank) return canvas;
+
+    const { xMin, xMax }  = r.config;
+    const reflectedWave   = this._buildReflectedWave(incidentWave, boundary, endType);
+    const dir             = incidentWave.direction;
+    // 入射波が右向き(+1) → 媒質は x ≤ boundary 側
+    const medXMin = dir > 0 ? xMin     : boundary;
+    const medXMax = dir > 0 ? boundary : xMax;
+
+    // 入射波（全範囲）
+    if (showIncident && incidentWave.vertices.length > 0) {
+      r.drawWave(incidentWave.getSnapshot(xMin, xMax, t), this._styleA);
+    }
+
+    // 反射波（媒質内のみ）
+    if (showReflected && reflectedWave.vertices.length > 0) {
+      const pts = reflectedWave.getSnapshot(medXMin, medXMax, t);
+      if (pts.length >= 2) r.drawWave(pts, this._styleB);
+    }
+
+    // 合成波（媒質内のみ）—— 全頂点位置を union して正確に描画
+    if (showSum) {
+      const xSet = new Set();
+      for (let xi = Math.floor(medXMin); xi <= Math.ceil(medXMax); xi++) xSet.add(xi);
+      const shiftI = incidentWave.direction  * incidentWave.speed  * t;
+      const shiftR = reflectedWave.direction * reflectedWave.speed * t;
+      incidentWave.vertices.forEach(v => {
+        const sx = v.x + shiftI;
+        if (sx >= medXMin && sx <= medXMax) xSet.add(sx);
+      });
+      reflectedWave.vertices.forEach(v => {
+        const sx = v.x + shiftR;
+        if (sx >= medXMin && sx <= medXMax) xSet.add(sx);
+      });
+      const sumPts = [...xSet]
+        .sort((a, b) => a - b)
+        .filter(xi => xi >= medXMin && xi <= medXMax)
+        .map(xi => ({
+          x: xi,
+          y: incidentWave.getYAtTime(xi, t) + reflectedWave.getYAtTime(xi, t),
+        }));
+      if (sumPts.length >= 2) r.drawWave(sumPts, this._styleSum);
+    }
+
+    // 凡例（表示要素のみ）
+    const legend = [];
+    if (showIncident)  legend.push({ label: '入射波', ...this._styleA });
+    if (showReflected) legend.push({ label: '反射波', ...this._styleB });
+    if (showSum)       legend.push({ label: '合成波', ...this._styleSum });
+    if (legend.length > 0) r.drawLegend(legend);
+
+    return canvas;
+  }
+
+  /**
+   * Type6 正答選択肢（合成波のみ + 境界線）
+   */
+  renderType6CorrectCanvas(waveA, boundary, endType, t) {
+    return this._renderReflectionCanvas(waveA, boundary, endType, t, {
+      showIncident:  false,
+      showReflected: false,
+      showSum:       true,
+    });
+  }
+
+  /**
+   * Type6 不正解選択肢（distractor を合成波スタイルで描画 + 境界線 + 灰色領域）
+   * distractor は静的な折れ線（伝播しない）→ getSnapshot(_, _, 0) で描画
+   * @param {number} direction 入射波の向き（灰色領域の方向）
+   */
+  renderType6DistractorCanvas(distractorWave, boundary, t, direction = 1) {
+    const canvas = this._makeCanvas();
+    const r      = this._makeRenderer(canvas, {});
+    r.clear();
+    r.drawBeyondMediumRegion(boundary, direction);
+    r.drawGrid();
+    r.drawAxes();
+    r.drawTimeLabel(t);
+    r.drawBoundaryLine(boundary);
+    if (distractorWave && distractorWave.vertices.length > 0) {
+      const { xMin, xMax } = r.config;
+      r.drawWave(distractorWave.getSnapshot(xMin, xMax, 0), this._styleSum);
+    }
+    return canvas;
+  }
+
+  // ================================================================
+  // Type 6: 反射波 — 指定時刻の合成波
+  // ================================================================
+  generateType6(params) {
+    const { waveA, boundary, endType, answerT, choicesConfig } = params;
+    const endTypeStr = endType === 'free' ? '自由端' : '固定端';
+    const dirStr     = waveA.direction > 0 ? '右' : '左';
+    const hasChoices = choicesConfig && choicesConfig.enabled;
+
+    const blankLabel = hasChoices
+      ? `t = ${answerT} [s]（作図用）`
+      : `t = ${answerT} [s]（解答欄）`;
+
+    // 問題キャンバス: t=0 入射波参照 + 解答欄
+    const questionCanvases = [
+      this._renderReflectionCanvas(waveA, boundary, endType, 0, {
+        showIncident: true, showReflected: false, showSum: false,
+      }),
+      this._renderReflectionCanvas(waveA, boundary, endType, answerT, {
+        isBlank: true, timeLabel: blankLabel,
+      }),
+    ];
+
+    // 解答キャンバス: 全表示
+    const answerCanvases = [
+      this._renderReflectionCanvas(waveA, boundary, endType, answerT),
+    ];
+
+    // 解説用スナップショット（refCanvases で _renderProblemOutput が自動検出して表示）
+    const refCanvases = [];
+    for (let t = 0; t <= answerT; t++) {
+      refCanvases.push(this._renderReflectionCanvas(waveA, boundary, endType, t));
+    }
+
+    const result = {
+      questionText:
+        `t = 0 のとき、下図のような入射波が x = ${boundary} の位置にある${endTypeStr}に向かって進んでいる。\n` +
+        `（速さ ${waveA.speed} cm/s、${dirStr}向き）\n` +
+        `t = ${answerT} [s] のとき、媒質内の合成波を実線で記入しなさい。`,
+      questionCanvases,
+      answerText:
+        `t = ${answerT} [s] の波の様子\n点線: 入射波　破線: 反射波　実線: 合成波`,
+      answerCanvases,
+      answerValue: null,
+      refCanvases,
+      refSectionTitle: '【解説】各時刻の入射波・反射波・合成波の様子',
+      refSectionNote:  '点線: 入射波　破線: 反射波　実線: 合成波（媒質内のみ）',
+    };
+
+    // 選択肢モード
+    if (hasChoices) {
+      const { count, distractors = [] } = choicesConfig;
+      const correctCanvas = this.renderType6CorrectCanvas(waveA, boundary, endType, answerT);
+      const items = [
+        { canvas: correctCanvas, isCorrect: true },
+        ...distractors.slice(0, count - 1).map(d => ({
+          canvas:    this.renderType6DistractorCanvas(d, boundary, answerT, waveA.direction),
+          isCorrect: false,
+        })),
+      ];
+      result.choices = { items, correctIndex: 0, count };
+    }
+
+    return result;
+  }
+
+  // ================================================================
+  // Type 7: 反射波 — 複数時刻の合成波（範囲指定）
+  // ================================================================
+  generateType7(params) {
+    const { waveA, boundary, endType, tStart, tEnd } = params;
+    const endTypeStr = endType === 'free' ? '自由端' : '固定端';
+    const dirStr     = waveA.direction > 0 ? '右' : '左';
+
+    // 問題キャンバス: t=0 参照 + 各時刻の解答欄
+    const questionCanvases = [
+      this._renderReflectionCanvas(waveA, boundary, endType, 0, {
+        showIncident: true, showReflected: false, showSum: false,
+      }),
+    ];
+    for (let t = tStart; t <= tEnd; t++) {
+      questionCanvases.push(
+        this._renderReflectionCanvas(waveA, boundary, endType, t, {
+          isBlank: true, timeLabel: `t = ${t} [s]（解答欄）`,
+        })
+      );
+    }
+
+    // 解答キャンバス: 各時刻の全表示
+    const answerCanvases = [];
+    for (let t = tStart; t <= tEnd; t++) {
+      answerCanvases.push(this._renderReflectionCanvas(waveA, boundary, endType, t));
+    }
+
+    return {
+      questionText:
+        `t = 0 のとき、下図のような入射波が x = ${boundary} の位置にある${endTypeStr}に向かって進んでいる。\n` +
+        `（速さ ${waveA.speed} cm/s、${dirStr}向き）\n` +
+        `t = ${tStart} 〜 ${tEnd} [s] の各時刻について、媒質内の合成波を実線で記入しなさい。`,
+      questionCanvases,
+      answerText:
+        `t = ${tStart} 〜 ${tEnd} [s] の波の様子（各 1 秒刻み）\n点線: 入射波　破線: 反射波　実線: 合成波`,
+      answerCanvases,
+      answerValue: null,
+    };
+  }
 }
