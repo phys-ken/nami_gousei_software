@@ -92,7 +92,7 @@ class ProblemGenerator {
 
     const c = r.config;
     waves.forEach((wave, i) => {
-      if (!wave || wave.vertices.length === 0) return;
+      if (!wave || wave.isEmpty()) return;
       r.drawWave(wave.getSnapshot(c.xMin, c.xMax, t), styles[i] || {});
     });
 
@@ -133,9 +133,9 @@ class ProblemGenerator {
     r.drawTimeLabel(t);
 
     const { xMin, xMax } = r.config;
-    if (waveA.vertices.length > 0)
+    if (!waveA.isEmpty())
       r.drawWave(waveA.getSnapshot(xMin, xMax, t), this._styleA);
-    if (waveB.vertices.length > 0)
+    if (!waveB.isEmpty())
       r.drawWave(waveB.getSnapshot(xMin, xMax, t), this._styleB);
 
     // 凡例（合成波の行を含まない）
@@ -157,18 +157,16 @@ class ProblemGenerator {
 
     const { xMin, xMax } = r.config;
 
-    if (waveA.vertices.length > 0)
+    if (!waveA.isEmpty())
       r.drawWave(waveA.getSnapshot(xMin, xMax, t), this._styleA);
-    if (waveB.vertices.length > 0)
+    if (!waveB.isEmpty())
       r.drawWave(waveB.getSnapshot(xMin, xMax, t), this._styleB);
 
     // 合成波（全頂点位置を union して正確に描画）
     const xSet = new Set();
     for (let xi = Math.floor(xMin); xi <= Math.ceil(xMax); xi++) xSet.add(xi);
-    const shiftA = waveA.direction * waveA.speed * t;
-    const shiftB = waveB.direction * waveB.speed * t;
-    waveA.vertices.forEach(v => xSet.add(v.x + shiftA));
-    waveB.vertices.forEach(v => xSet.add(v.x + shiftB));
+    waveA.getKeyXs(t).forEach(sx => xSet.add(sx));
+    waveB.getKeyXs(t).forEach(sx => xSet.add(sx));
 
     const sumPts = [...xSet]
       .sort((a, b) => a - b)
@@ -241,7 +239,7 @@ class ProblemGenerator {
     r.clear();
     r.drawGrid();
     r.drawAxes({ xLabel: 't [s]', yLabel: 'y [cm]' });
-    if (distractorWave && distractorWave.vertices.length > 0) {
+    if (distractorWave && !distractorWave.isEmpty()) {
       // distractor は静的な折れ線（伝播しない）→ getSnapshot(_, _, 0) を使う
       const pts = distractorWave.getSnapshot(0, tMax, 0);
       r.drawWave(pts, this._styleSingle);
@@ -264,10 +262,8 @@ class ProblemGenerator {
 
     const xSet = new Set();
     for (let xi = Math.floor(xMin); xi <= Math.ceil(xMax); xi++) xSet.add(xi);
-    const shiftA = waveA.direction * waveA.speed * t;
-    const shiftB = waveB.direction * waveB.speed * t;
-    waveA.vertices.forEach(v => xSet.add(v.x + shiftA));
-    waveB.vertices.forEach(v => xSet.add(v.x + shiftB));
+    waveA.getKeyXs(t).forEach(sx => xSet.add(sx));
+    waveB.getKeyXs(t).forEach(sx => xSet.add(sx));
     const sumPts = [...xSet]
       .sort((a, b) => a - b)
       .filter(xi => xi >= xMin && xi <= xMax)
@@ -286,7 +282,7 @@ class ProblemGenerator {
     r.drawGrid();
     r.drawAxes();
     r.drawTimeLabel(t);
-    if (distractorWave && distractorWave.vertices.length > 0) {
+    if (distractorWave && !distractorWave.isEmpty()) {
       const { xMin, xMax } = r.config;
       // distractor は静的な折れ線（伝播しない）→ t=0 として描画
       const pts = distractorWave.getSnapshot(xMin, xMax, 0);
@@ -505,14 +501,7 @@ class ProblemGenerator {
    * 固定端: x → 2*boundary - x, y 反転
    */
   _buildReflectedWave(incidentWave, boundary, endType) {
-    const w   = new Wave();
-    w.speed     = incidentWave.speed;
-    w.direction = -incidentWave.direction;
-    const sign  = endType === 'fixed' ? -1 : 1;
-    for (const v of incidentWave.vertices) {
-      w.setVertex(2 * boundary - v.x, sign * v.y);
-    }
-    return w;
+    return incidentWave.reflect(boundary, endType);
   }
 
   /**
@@ -557,12 +546,12 @@ class ProblemGenerator {
     const medXMax = dir > 0 ? boundary : xMax;
 
     // 入射波（全範囲）
-    if (showIncident && incidentWave.vertices.length > 0) {
+    if (showIncident && !incidentWave.isEmpty()) {
       r.drawWave(incidentWave.getSnapshot(xMin, xMax, t), this._styleA);
     }
 
     // 反射波（媒質内のみ）
-    if (showReflected && reflectedWave.vertices.length > 0) {
+    if (showReflected && !reflectedWave.isEmpty()) {
       const pts = reflectedWave.getSnapshot(medXMin, medXMax, t);
       if (pts.length >= 2) r.drawWave(pts, this._styleB);
     }
@@ -571,14 +560,10 @@ class ProblemGenerator {
     if (showSum) {
       const xSet = new Set();
       for (let xi = Math.floor(medXMin); xi <= Math.ceil(medXMax); xi++) xSet.add(xi);
-      const shiftI = incidentWave.direction  * incidentWave.speed  * t;
-      const shiftR = reflectedWave.direction * reflectedWave.speed * t;
-      incidentWave.vertices.forEach(v => {
-        const sx = v.x + shiftI;
+      incidentWave.getKeyXs(t).forEach(sx => {
         if (sx >= medXMin && sx <= medXMax) xSet.add(sx);
       });
-      reflectedWave.vertices.forEach(v => {
-        const sx = v.x + shiftR;
+      reflectedWave.getKeyXs(t).forEach(sx => {
         if (sx >= medXMin && sx <= medXMax) xSet.add(sx);
       });
       const sumPts = [...xSet]
@@ -626,7 +611,7 @@ class ProblemGenerator {
     r.drawAxes();
     r.drawTimeLabel(t);
     r.drawBoundaryLine(boundary);
-    if (distractorWave && distractorWave.vertices.length > 0) {
+    if (distractorWave && !distractorWave.isEmpty()) {
       const { xMin, xMax } = r.config;
       r.drawWave(distractorWave.getSnapshot(xMin, xMax, 0), this._styleSum);
     }

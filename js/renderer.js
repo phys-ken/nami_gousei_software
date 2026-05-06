@@ -390,7 +390,7 @@ class WaveRenderer {
 
     const c = this.config;
     waves.forEach((wave, i) => {
-      if (!wave || wave.vertices.length === 0) return;
+      if (!wave || wave.isEmpty()) return;
       const pts   = wave.getSnapshot(c.xMin, c.xMax, t);
       const style = (options.styles && options.styles[i]) ? options.styles[i] : {};
       this.drawWave(pts, style);

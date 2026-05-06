@@ -172,7 +172,10 @@ const App = {
         this.choicesConfig[t].enabled = !!c.enabled;
         this.choicesConfig[t].count   = (typeof c.count === 'number' && c.count >= 2 && c.count <= 10) ? c.count : 6;
         this.choicesConfig[t].source  = c.source || 'manual';
-        this.choicesConfig[t].distractors = (c.distractors || []).map(json => new Wave().fromJSON(json));
+        this.choicesConfig[t].distractors = (c.distractors || []).map(json => {
+          const Ctor = (json.kind === 'sine') ? SineWave : Wave;
+          return new Ctor().fromJSON(json);
+        });
       });
     } catch (_) {/* 失敗時はデフォルトのまま */}
   },
@@ -193,9 +196,9 @@ const App = {
     } catch (_) {}
   },
 
-  /** type の distractors に頂点が1つでもあれば true */
+  /** type の distractors に内容があれば true */
   _choicesHasContent(type) {
-    return this.choicesConfig[type].distractors.some(w => w.vertices.length > 0);
+    return this.choicesConfig[type].distractors.some(w => !w.isEmpty());
   },
 
   /**
@@ -382,14 +385,14 @@ const App = {
     });
 
     if (type === 'type3') {
-      if (this.waveA.vertices.length === 0) return null;
+      if (this.waveA.isEmpty()) return null;
       const x    = parseFloat(document.getElementById('p3-x').value);
       const tMax = parseInt(document.getElementById('p3-tMax').value, 10);
       if (isNaN(x) || isNaN(tMax) || tMax < 1) return null;
       return gen.renderType3CorrectCanvas(this.waveA, x, tMax);
     } else if (type === 'type4') {
       if (!this.hasWaveB) return null;
-      if (this.waveA.vertices.length === 0 || this.waveB.vertices.length === 0) return null;
+      if (this.waveA.isEmpty() || this.waveB.isEmpty()) return null;
       const t = parseInt(document.getElementById('p4-answerT').value, 10);
       if (isNaN(t) || t < 1) return null;
       // 速さも最新化
@@ -399,7 +402,7 @@ const App = {
       if (!isNaN(sb)) this.waveB.speed = sb;
       return gen.renderType4CorrectCanvas(this.waveA, this.waveB, t);
     } else if (type === 'type6') {
-      if (!this.reflectionConfig.enabled || this.waveA.vertices.length === 0) return null;
+      if (!this.reflectionConfig.enabled || this.waveA.isEmpty()) return null;
       const t = parseInt(document.getElementById('t6-answer').value, 10);
       if (isNaN(t) || t < 1) return null;
       const sa = parseFloat(document.getElementById('waveASpeed').value);
@@ -812,16 +815,16 @@ const App = {
    * 波形なし（全頂点空）の場合は 0 を返す。
    */
   _computeMaxDisplacement() {
-    if (this.waveA.vertices.length === 0) return 0;
+    if (this.waveA.isEmpty()) return 0;
 
     const { xMin, xMax } = this.gridConfig;
 
     // 反射波モード: 入射波最大振幅×2 を上限とする（構成的干渉の最悪ケース）
     if (this.reflectionConfig.enabled) {
-      return Math.max(...this.waveA.vertices.map(v => Math.abs(v.y))) * 2;
+      return this.waveA.getMaxAmplitude() * 2;
     }
 
-    const hasB = this.hasWaveB && this.waveB.vertices.length > 0;
+    const hasB = this.hasWaveB && !this.waveB.isEmpty();
     const tMax  = (xMax - xMin) * 2; // 両波が領域を一往復する時間
     const tStep = 0.25;
     const xStep = 0.25;
@@ -998,7 +1001,7 @@ const App = {
       this.waveB.speed = _spd('waveBSpeed');
     }
 
-    if (this.waveA.vertices.length === 0) {
+    if (this.waveA.isEmpty()) {
       alert('波Aの波形が入力されていません。波形編集タブで波形を描いてください。');
       return;
     }
@@ -1029,14 +1032,14 @@ const App = {
         const tMax = _int('p3-tMax', 5);
         result = generator.generateType3({ wave: this.waveA, x, tMax });
       } else if (type === 'type4') {
-        if (!this.hasWaveB || this.waveB.vertices.length === 0) {
+        if (!this.hasWaveB || this.waveB.isEmpty()) {
           alert('Type 4 には波Bの波形が必要です。');
           return;
         }
         const answerT = _int('p4-answerT', 2);
         result = generator.generateType4({ waveA: this.waveA, waveB: this.waveB, answerT });
       } else if (type === 'type5') {
-        if (!this.hasWaveB || this.waveB.vertices.length === 0) {
+        if (!this.hasWaveB || this.waveB.isEmpty()) {
           alert('Type 5 には波Bの波形が必要です。');
           return;
         }

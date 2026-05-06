@@ -141,10 +141,10 @@ class WaveEditor {
     if (r.config.boundary != null) r.drawBoundaryLine(r.config.boundary);
 
     // 波形
-    if (this.wave.vertices.length > 0) {
+    if (!this.wave.isEmpty()) {
       const pts = this.wave.getSnapshot(c.xMin, c.xMax, 0);
       r.drawWave(pts, { lineWidth: 2.5 });
-      this.wave.vertices.forEach(v => r.drawVertex(v.x, v.y));
+      if (this.wave.vertices) this.wave.vertices.forEach(v => r.drawVertex(v.x, v.y));
     }
 
     // ホバー
