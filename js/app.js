@@ -805,7 +805,11 @@ const App = {
     renderer.drawWave(pts, style);
   },
 
-
+  /** 正答 Canvas を生成（ProblemGenerator のヘルパーを使用） */
+  _renderCorrectChoiceCanvas(type) {
+    const gen = new ProblemGenerator({
+      gridConfig:  this.gridConfig,
+      styleConfig: this.styleConfig,
       cellSize:    this.cellSize,
     });
 
