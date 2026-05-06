@@ -60,3 +60,44 @@ fs.writeFileSync(outPath, png);
 console.log('[smoke] Wrote:', outPath, `(${png.length} bytes)`);
 
 console.log('\n[smoke] All Phase A/B checks passed.');
+
+// ── 正弦波スモークテスト（Phase 7） ────────────────────────────────────
+console.log('\n[smoke] Building SineWave Type1 problem (continuous)...');
+if (!sandbox.SineWave) {
+  console.error('[smoke] MISSING global: SineWave');
+  process.exit(1);
+}
+console.log('[smoke] OK SineWave (${typeof sandbox.SineWave})'.replace('${typeof sandbox.SineWave}', typeof sandbox.SineWave));
+
+const { SineWave } = sandbox;
+
+const sineA = new SineWave().fromJSON({
+  sineConfig: { amplitude: 1, wavelength: 4, phaseShift: 0, waveType: 'continuous' },
+  speed: 1, direction: 1, label: 'A',
+});
+
+const genSine = new ProblemGenerator({
+  gridConfig: { xMin: 0, xMax: 10, yMin: -2, yMax: 2 },
+  styleConfig: STYLE_PRESETS.gray,
+  cellSize: { w: null, h: null },
+});
+
+const r1 = genSine.generateType1({ wave: sineA, answerT: 3 });
+console.log('[smoke] SineWave Type1 questionText:', r1.questionText);
+console.log('[smoke] SineWave Type1 answerCanvases:', r1.answerCanvases.length);
+const p1 = path.join(outDir, 'sine_type1.png');
+fs.writeFileSync(p1, r1.answerCanvases[0].toBuffer('image/png'));
+console.log('[smoke] Wrote:', p1);
+
+console.log('\n[smoke] Building SineWave Type4 problem (A+B sine)...');
+const sineB = new SineWave().fromJSON({
+  sineConfig: { amplitude: 1, wavelength: 4, phaseShift: 2, waveType: 'continuous' },
+  speed: 1, direction: -1, label: 'B',
+});
+const r4 = genSine.generateType4({ waveA: sineA, waveB: sineB, answerT: 3 });
+console.log('[smoke] SineWave Type4 answerCanvases:', r4.answerCanvases.length);
+const p4 = path.join(outDir, 'sine_type4.png');
+fs.writeFileSync(p4, r4.answerCanvases[0].toBuffer('image/png'));
+console.log('[smoke] Wrote:', p4);
+
+console.log('\n[smoke] All sine wave checks passed.');

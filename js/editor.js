@@ -22,36 +22,59 @@ class WaveEditor {
   }
 
   _bindEvents() {
-    this.canvas.addEventListener('mousemove',   e => this._onMouseMove(e));
-    this.canvas.addEventListener('mousedown',   e => this._onMouseDown(e));
-    this.canvas.addEventListener('mouseup',     ()  => this._onMouseUp());
-    this.canvas.addEventListener('mouseleave',  ()  => { this.hoverPos = null; this.isDragging = false; this.activeX = null; this.render(); });
-    this.canvas.addEventListener('contextmenu', e => { e.preventDefault(); this._onRightClick(e); });
+    // ハンドラ参照を保持して destroy() で確実に削除できるようにする
+    this._h = {
+      mousemove:   e => this._onMouseMove(e),
+      mousedown:   e => this._onMouseDown(e),
+      mouseup:     ()  => this._onMouseUp(),
+      mouseleave:  ()  => { this.hoverPos = null; this.isDragging = false; this.activeX = null; this.render(); },
+      contextmenu: e => { e.preventDefault(); this._onRightClick(e); },
+      touchstart: e => {
+        e.preventDefault();
+        const t = e.touches[0];
+        const pos = this._snapGrid(t.clientX, t.clientY);
+        this.activeX = pos.x;
+        this.wave.setVertex(pos.x, pos.y);
+        this.onUpdate();
+        this.render();
+      },
+      touchmove: e => {
+        e.preventDefault();
+        if (this.activeX === null) return;
+        const t = e.touches[0];
+        const { py } = this._getCanvasXY(t.clientX, t.clientY);
+        const world = this.renderer.toWorld(0, py);
+        const c = this.renderer.config;
+        const snappedY = Math.max(c.yMin, Math.min(c.yMax, Math.round(world.y * 2) / 2));
+        this.wave.setVertex(this.activeX, snappedY);
+        this.onUpdate();
+        this.render();
+      },
+      touchend: () => { this.activeX = null; },
+    };
 
-    this.canvas.addEventListener('touchstart', e => {
-      e.preventDefault();
-      const t = e.touches[0];
-      const pos = this._snapGrid(t.clientX, t.clientY);
-      this.activeX = pos.x;
-      this.wave.setVertex(pos.x, pos.y);
-      this.onUpdate();
-      this.render();
-    }, { passive: false });
+    this.canvas.addEventListener('mousemove',  this._h.mousemove);
+    this.canvas.addEventListener('mousedown',  this._h.mousedown);
+    this.canvas.addEventListener('mouseup',    this._h.mouseup);
+    this.canvas.addEventListener('mouseleave', this._h.mouseleave);
+    this.canvas.addEventListener('contextmenu', this._h.contextmenu);
+    this.canvas.addEventListener('touchstart', this._h.touchstart, { passive: false });
+    this.canvas.addEventListener('touchmove',  this._h.touchmove,  { passive: false });
+    this.canvas.addEventListener('touchend',   this._h.touchend);
+  }
 
-    this.canvas.addEventListener('touchmove', e => {
-      e.preventDefault();
-      if (this.activeX === null) return;
-      const t = e.touches[0];
-      const { py } = this._getCanvasXY(t.clientX, t.clientY);
-      const world = this.renderer.toWorld(0, py);
-      const c = this.renderer.config;
-      const snappedY = Math.max(c.yMin, Math.min(c.yMax, Math.round(world.y * 2) / 2));
-      this.wave.setVertex(this.activeX, snappedY);
-      this.onUpdate();
-      this.render();
-    }, { passive: false });
-
-    this.canvas.addEventListener('touchend', () => { this.activeX = null; });
+  /** canvas に追加したすべてのイベントリスナーを解除する */
+  destroy() {
+    if (!this._h) return;
+    this.canvas.removeEventListener('mousemove',  this._h.mousemove);
+    this.canvas.removeEventListener('mousedown',  this._h.mousedown);
+    this.canvas.removeEventListener('mouseup',    this._h.mouseup);
+    this.canvas.removeEventListener('mouseleave', this._h.mouseleave);
+    this.canvas.removeEventListener('contextmenu', this._h.contextmenu);
+    this.canvas.removeEventListener('touchstart', this._h.touchstart);
+    this.canvas.removeEventListener('touchmove',  this._h.touchmove);
+    this.canvas.removeEventListener('touchend',   this._h.touchend);
+    this._h = null;
   }
 
   _getCanvasXY(clientX, clientY) {
@@ -141,10 +164,10 @@ class WaveEditor {
     if (r.config.boundary != null) r.drawBoundaryLine(r.config.boundary);
 
     // 波形
-    if (this.wave.vertices.length > 0) {
+    if (!this.wave.isEmpty()) {
       const pts = this.wave.getSnapshot(c.xMin, c.xMax, 0);
       r.drawWave(pts, { lineWidth: 2.5 });
-      this.wave.vertices.forEach(v => r.drawVertex(v.x, v.y));
+      if (this.wave.vertices) this.wave.vertices.forEach(v => r.drawVertex(v.x, v.y));
     }
 
     // ホバー

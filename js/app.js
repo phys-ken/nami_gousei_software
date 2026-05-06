@@ -15,6 +15,12 @@ const App = {
   styleMode: 'gray',         // 'gray' | 'bw' | 'custom'
   currentProblem: null,
 
+  // 正弦波モード状態
+  waveAMode: 'vertex',   // 'vertex' | 'sine'
+  waveBMode: 'vertex',
+  waveASine: null,       // SineWave インスタンス（sine モード時）
+  waveBSine: null,
+
   // 選択肢モード設定（Type3 / Type4 / Type6 対象）
   // distractors[] には Wave インスタンスが入る（count - 1 個、正答は別途自動生成）
   // source は将来 'auto'（自動生成）を追加できるように布石
@@ -34,6 +40,224 @@ const App = {
   },
 
   // ------------------------------------------------------------------
+  // 正弦波モード — アクセサ
+  // ------------------------------------------------------------------
+
+  /** 波 A の実体（モードに応じて Wave または SineWave を返す） */
+  _activeWaveA() {
+    return this.waveAMode === 'sine' ? this.waveASine : this.waveA;
+  },
+
+  /** 波 B の実体（モードに応じて Wave または SineWave を返す） */
+  _activeWaveB() {
+    return this.waveBMode === 'sine' ? this.waveBSine : this.waveB;
+  },
+
+  // ------------------------------------------------------------------
+  // 正弦波モード — 状態管理・UI
+  // ------------------------------------------------------------------
+
+  /** デフォルト SineConfig を生成する */
+  _defaultSineConfig() {
+    return {
+      amplitude:   1,
+      wavelength:  4,
+      phaseShift:  0,
+      waveType:   'continuous',
+      invertPhase: false,
+      x0:          0,
+    };
+  },
+
+  /** localStorage から正弦波設定を復元 */
+  _loadSineConfigs() {
+    ['A', 'B'].forEach(name => {
+      try {
+        const modeKey  = `waveapp_wave${name}Mode`;
+        const cfgKey   = `waveapp_wave${name}SineConfig`;
+        const mode     = localStorage.getItem(modeKey);
+        const cfgJson  = localStorage.getItem(cfgKey);
+        if (mode === 'sine') {
+          const cfg = cfgJson ? JSON.parse(cfgJson) : this._defaultSineConfig();
+          const wave = this[`wave${name}`];
+          this[`wave${name}Sine`] = new SineWave({
+            sineConfig: cfg,
+            speed:      wave.speed,
+            direction:  wave.direction,
+            label:      name,
+          });
+          this[`wave${name}Mode`] = 'sine';
+        }
+      } catch (_) { /* 復元失敗はデフォルトのまま */ }
+    });
+  },
+
+  /** 正弦波設定を localStorage に保存 */
+  _saveSineConfig(name) {
+    try {
+      localStorage.setItem(`waveapp_wave${name}Mode`, this[`wave${name}Mode`]);
+      const sw = this[`wave${name}Sine`];
+      if (sw) {
+        localStorage.setItem(`waveapp_wave${name}SineConfig`, JSON.stringify(sw.sineConfig));
+      }
+    } catch (_) {}
+  },
+
+  /**
+   * モード切り替えボタンのハンドラ
+   * 'vertex' ↔ 'sine' を切り替え、UI を更新する
+   */
+  setWaveMode(name, mode) {
+    if (this[`wave${name}Mode`] === mode) return; // 変更なし
+    this[`wave${name}Mode`] = mode;
+
+    if (mode === 'sine' && !this[`wave${name}Sine`]) {
+      // SineWave がなければデフォルト設定で生成
+      const wave = this[`wave${name}`];
+      this[`wave${name}Sine`] = new SineWave({
+        sineConfig: this._defaultSineConfig(),
+        speed:      wave.speed,
+        direction:  wave.direction,
+        label:      name,
+      });
+    }
+
+    this._saveSineConfig(name);
+    this._updateWaveModeUI(name);
+    // エディタの再生成（sine モードならエディタを破棄してプレビュー描画、
+    // vertex モードなら WaveEditor を再生成）
+    if (name === 'A') {
+      this._setupEditorA();
+    } else if (name === 'B' && this.hasWaveB) {
+      this._setupEditorB();
+    }
+
+    // wave A のモードが変わったら distractor の型と選択肢パネルも更新
+    if (name === 'A') {
+      ['type3', 'type4', 'type6'].forEach(t => {
+        if (this.choicesConfig[t].enabled) {
+          this._resizeDistractors(t, this.choicesConfig[t].count);
+          this._renderChoicesList(t);
+        }
+      });
+    }
+  },
+
+  /** 正弦波パラメータ入力欄の onchange ハンドラ */
+  onSineParamChange(name) {
+    const sw = this[`wave${name}Sine`];
+    if (!sw) return;
+
+    const prefix = `wave${name}Sine`;
+    const amp  = parseInt(document.getElementById(`${prefix}Amplitude`)?.value, 10);
+    const wl   = parseInt(document.getElementById(`${prefix}Wavelength`)?.value, 10);
+    const ps   = parseInt(document.getElementById(`${prefix}PhaseShift`)?.value, 10);
+    const x0   = parseInt(document.getElementById(`${prefix}X0`)?.value, 10);
+    const inv  = document.getElementById(`${prefix}InvertPhase`)?.checked ?? false;
+
+    if (!isNaN(amp) && amp >= 1) sw.sineConfig.amplitude   = amp;
+    if (!isNaN(wl)  && wl >= 2)  sw.sineConfig.wavelength  = wl;
+    if (!isNaN(ps))               sw.sineConfig.phaseShift  = ps;
+    if (!isNaN(x0))               sw.sineConfig.x0          = x0;
+    sw.sineConfig.invertPhase = inv;
+
+    this._saveSineConfig(name);
+    this._renderSineWavePreview(name);  // Phase 3 で実装
+  },
+
+  /** 連続波 ↔ 先頭あり進行波 サブモード切り替え */
+  onSineSubMode(name, waveType) {
+    const sw = this[`wave${name}Sine`];
+    if (!sw) return;
+    sw.sineConfig.waveType = waveType;
+
+    // ボタン active 切り替え
+    const prefix = `wave${name}Sine`;
+    document.getElementById(`${prefix}ModeContinuous`)?.classList.toggle('active', waveType === 'continuous');
+    document.getElementById(`${prefix}ModeProgressive`)?.classList.toggle('active', waveType === 'progressive');
+    // 先頭ありパラメータの表示切り替え
+    const progEl = document.getElementById(`wave${name}SineProgressiveParams`);
+    if (progEl) progEl.style.display = waveType === 'progressive' ? 'block' : 'none';
+
+    this._saveSineConfig(name);
+    this._renderSineWavePreview(name);
+  },
+
+  /**
+   * モード切り替えに応じて UI を更新する
+   * - モードボタンの active 状態
+   * - 正弦波パラメータ欄の表示 / 非表示
+   * - 入力欄の値を SineWave インスタンスから同期
+   */
+  _updateWaveModeUI(name) {
+    const mode   = this[`wave${name}Mode`];
+    const prefix = `wave${name}Sine`;
+
+    // トグルボタン
+    document.getElementById(`wave${name}ModeVertex`)?.classList.toggle('active', mode === 'vertex');
+    document.getElementById(`wave${name}ModeSine`)?.classList.toggle('active', mode === 'sine');
+
+    // 正弦波パラメータ欄
+    const sineParams = document.getElementById(`wave${name}SineParams`);
+    if (sineParams) sineParams.style.display = mode === 'sine' ? 'block' : 'none';
+
+    if (mode === 'sine') {
+      const sw  = this[`wave${name}Sine`];
+      const cfg = sw?.sineConfig;
+      if (cfg) {
+        const ampEl = document.getElementById(`${prefix}Amplitude`);
+        const wlEl  = document.getElementById(`${prefix}Wavelength`);
+        const psEl  = document.getElementById(`${prefix}PhaseShift`);
+        const x0El  = document.getElementById(`${prefix}X0`);
+        const invEl = document.getElementById(`${prefix}InvertPhase`);
+        if (ampEl) ampEl.value = cfg.amplitude;
+        if (wlEl)  wlEl.value  = cfg.wavelength;
+        if (psEl)  psEl.value  = cfg.phaseShift;
+        if (x0El)  x0El.value  = cfg.x0 ?? 0;
+        if (invEl) invEl.checked = cfg.invertPhase ?? false;
+
+        // サブモードボタン
+        const isCont = cfg.waveType === 'continuous';
+        document.getElementById(`${prefix}ModeContinuous`)?.classList.toggle('active', isCont);
+        document.getElementById(`${prefix}ModeProgressive`)?.classList.toggle('active', !isCont);
+
+        // 先頭ありパラメータ表示
+        const progEl = document.getElementById(`wave${name}SineProgressiveParams`);
+        if (progEl) progEl.style.display = isCont ? 'none' : 'block';
+      }
+    }
+  },
+
+  // Phase 3: 正弦波モードの Canvas プレビュー描画
+  _renderSineWavePreview(name) {
+    const mode = this[`wave${name}Mode`];
+    if (mode !== 'sine') return;
+    const sw = this[`wave${name}Sine`];
+    if (!sw) return;
+
+    const canvasId = name === 'A' ? 'editorCanvasA' : 'editorCanvasB';
+    const canvas   = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    const { xMin, xMax } = this.gridConfig;
+    const extra = (name === 'A' && this.reflectionConfig.enabled) ? {
+      boundary:          this.reflectionConfig.boundary,
+      boundaryDirection: sw.direction,
+    } : {};
+    const renderer = new WaveRenderer(canvas, Object.assign({}, this.gridConfig, {
+      gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
+    }, extra));
+    renderer.clear();
+    renderer.drawGrid();
+    renderer.drawAxes();
+
+    const pts = sw.getSnapshot(xMin, xMax, 0);
+    const styleKey = name === 'A' ? 'waveSingle' : 'waveSingle';
+    const style    = this.styleConfig ? this.styleConfig[styleKey] : {};
+    renderer.drawWave(pts, style);
+  },
+
+  // ------------------------------------------------------------------
   // 初期化
   // ------------------------------------------------------------------
   init() {
@@ -48,9 +272,12 @@ const App = {
     this._loadCellSize();
     this._loadChoicesConfig();
     this._loadReflectionConfig();
+    this._loadSineConfigs();
     this._syncPresetButtons();
     this._syncGridInputs();
     this._syncCellSizeInputs();
+    this._updateWaveModeUI('A');
+    this._updateWaveModeUI('B');
     this._setupEditorA();
     this._bindSpeedInputs();
     this._bindChoicesParamRefresh();
@@ -172,7 +399,10 @@ const App = {
         this.choicesConfig[t].enabled = !!c.enabled;
         this.choicesConfig[t].count   = (typeof c.count === 'number' && c.count >= 2 && c.count <= 10) ? c.count : 6;
         this.choicesConfig[t].source  = c.source || 'manual';
-        this.choicesConfig[t].distractors = (c.distractors || []).map(json => new Wave().fromJSON(json));
+        this.choicesConfig[t].distractors = (c.distractors || []).map(json => {
+          const Ctor = (json.kind === 'sine') ? SineWave : Wave;
+          return new Ctor().fromJSON(json);
+        });
       });
     } catch (_) {/* 失敗時はデフォルトのまま */}
   },
@@ -193,20 +423,50 @@ const App = {
     } catch (_) {}
   },
 
-  /** type の distractors に頂点が1つでもあれば true */
+  /** type の distractors に内容があれば true */
   _choicesHasContent(type) {
-    return this.choicesConfig[type].distractors.some(w => w.vertices.length > 0);
+    return this.choicesConfig[type].distractors.some(w => !w.isEmpty());
   },
 
   /**
-   * 選択肢数を変更（Wave 配列を伸縮）
+   * 選択肢数を変更（Wave / SineWave 配列を伸縮・型変換）
    * 必要数 = count - 1（正答は自動生成のため distractors には含めない）
    */
   _resizeDistractors(type, count) {
     const need = Math.max(0, count - 1);
     const arr  = this.choicesConfig[type].distractors;
-    while (arr.length < need) arr.push(new Wave());
+    const mode = this._activeDistractorMode();
+    // 既存要素の型を現在のモードに合わせて変換
+    for (let i = 0; i < arr.length; i++) {
+      const isSine = arr[i] instanceof SineWave;
+      if (mode === 'sine' && !isSine) {
+        arr[i] = this._newSineDistractor();
+      } else if (mode !== 'sine' && isSine) {
+        arr[i] = new Wave();
+      }
+    }
+    while (arr.length < need) {
+      arr.push(mode === 'sine' ? this._newSineDistractor() : new Wave());
+    }
     while (arr.length > need) arr.pop();
+  },
+
+  /** distractor 用 SineWave のデフォルト生成（波 A の速さ・向きを引き継ぐ） */
+  _newSineDistractor() {
+    return new SineWave({
+      sineConfig: this._defaultSineConfig(),
+      speed:      this.waveASine ? this.waveASine.speed     : 1,
+      direction:  this.waveASine ? this.waveASine.direction : 1,
+      label:      'A',
+    });
+  },
+
+  /**
+   * distractor のモードを返す（wave A モードに準拠）
+   * type3 / type4 / type6 すべて wave A が基準
+   */
+  _activeDistractorMode() {
+    return this.waveAMode;
   },
 
   /**
@@ -250,9 +510,16 @@ const App = {
   clearDistractor(type, idx) {
     const w = this.choicesConfig[type].distractors[idx];
     if (!w) return;
-    w.clear();
-    const ed = this._choiceEditors[type][idx];
-    if (ed) ed.render();
+    if (w instanceof SineWave) {
+      // SineWave をデフォルト設定にリセット
+      w.sineConfig = this._defaultSineConfig();
+      this._saveChoicesConfig();
+      this._refreshSineDistractorPreview(type, idx);
+    } else {
+      w.clear();
+      const ed = this._choiceEditors[type][idx];
+      if (ed) ed.render();
+    }
   },
 
   /** 正答プレビューを再描画（波A・波B・パラメータの変更を反映） */
@@ -313,18 +580,23 @@ const App = {
     }
     listEl.appendChild(correctItem.root);
 
-    // 2) 選択肢② 〜 ⑥（distractors）= ユーザ入力
-    for (let i = 0; i < cfg.distractors.length; i++) {
-      const item = this._buildChoiceItemContainer(i + 2, false, () => this.clearDistractor(type, i));
-      const canvas = this._buildDistractorCanvas(type, i);
-      item.canvasArea.appendChild(canvas);
-      listEl.appendChild(item.root);
+    const mode = this._activeDistractorMode();
 
-      // WaveEditor を生成
-      const wave     = cfg.distractors[i];
-      const renderer = this._buildDistractorRenderer(type, canvas);
-      const editor   = new WaveEditor(canvas, wave, renderer, () => this._saveChoicesConfig());
-      this._choiceEditors[type].push(editor);
+    // 2) 選択肢② 〜（distractors）= ユーザ入力
+    for (let i = 0; i < cfg.distractors.length; i++) {
+      if (mode === 'sine') {
+        listEl.appendChild(this._buildSineDistractorItem(type, i));
+      } else {
+        const item = this._buildChoiceItemContainer(i + 2, false, () => this.clearDistractor(type, i));
+        const canvas = this._buildDistractorCanvas(type, i);
+        item.canvasArea.appendChild(canvas);
+        listEl.appendChild(item.root);
+
+        const wave     = cfg.distractors[i];
+        const renderer = this._buildDistractorRenderer(type, canvas);
+        const editor   = new WaveEditor(canvas, wave, renderer, () => this._saveChoicesConfig());
+        this._choiceEditors[type].push(editor);
+      }
     }
   },
 
@@ -373,7 +645,173 @@ const App = {
     return n >= 1 && n <= 10 ? circled[n - 1] : `(${n})`;
   },
 
-  /** 正答 Canvas を生成（ProblemGenerator のヘルパーを利用） */
+  // ------------------------------------------------------------------
+  // 正弦波 distractor UI（Phase 5）
+  // ------------------------------------------------------------------
+
+  /**
+   * 正弦波 distractor 1 件分の DOM 要素を生成して返す。
+   * 入力欄変更 → cfg.distractors[idx] の sineConfig を即時更新 → プレビュー再描画。
+   */
+  _buildSineDistractorItem(type, idx) {
+    const cfg  = this.choicesConfig[type];
+    const sw   = cfg.distractors[idx];
+    const sc   = sw.sineConfig;
+    const num  = idx + 2;
+    const pfx  = `distractor-${type}-${idx}-sine`;
+
+    const root = document.createElement('div');
+    root.className = 'choice-item';
+
+    // ── ヘッダー ────────────────────────────────────────────────
+    const header = document.createElement('div');
+    header.className = 'choice-item-header';
+
+    const labelEl = document.createElement('span');
+    labelEl.className = 'choice-item-label';
+    labelEl.textContent = `選択肢 ${this._numToCircled(num)}`;
+    header.appendChild(labelEl);
+
+    const hint = document.createElement('span');
+    hint.className = 'choices-hint';
+    hint.textContent = type === 'type3' ? '波長 = 周期 T として入力' : '正弦波パラメータを設定';
+    header.appendChild(hint);
+
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'choice-item-clear-btn';
+    resetBtn.textContent = 'リセット';
+    resetBtn.onclick = () => this.clearDistractor(type, idx);
+    header.appendChild(resetBtn);
+    root.appendChild(header);
+
+    // ── パラメータ欄 ────────────────────────────────────────────
+    const params = document.createElement('div');
+    params.className = 'sine-distractor-params';
+
+    const makeNumInput = (labelText, id, val, min, max, step) => {
+      const row = document.createElement('label');
+      row.className = 'sine-distractor-label';
+      row.textContent = labelText + '\u00a0';
+      const inp = document.createElement('input');
+      inp.type = 'number'; inp.id = id;
+      inp.value = val; inp.min = min; inp.max = max; inp.step = step;
+      inp.oninput = () => this._onSineDistractorChange(type, idx);
+      row.appendChild(inp);
+      return row;
+    };
+
+    params.appendChild(makeNumInput('振幅', `${pfx}-amp`, sc.amplitude, 0.5, 4, 0.5));
+    params.appendChild(makeNumInput('波長', `${pfx}-wl`,  sc.wavelength, 1, 20, 1));
+    params.appendChild(makeNumInput('初期位相', `${pfx}-ps`, sc.phaseShift, -8, 8, 0.5));
+
+    // サブモード（連続波 / 先頭あり）
+    const modeRow = document.createElement('div');
+    modeRow.className = 'sine-submode-row';
+    const makeModeBtn = (btnLabel, wt) => {
+      const btn = document.createElement('button');
+      btn.className = 'sine-submode-btn' + (sc.waveType === wt ? ' active' : '');
+      btn.textContent = btnLabel;
+      btn.dataset.sineType = wt;
+      btn.onclick = () => {
+        sc.waveType = wt;
+        modeRow.querySelectorAll('.sine-submode-btn').forEach(
+          b => b.classList.toggle('active', b.dataset.sineType === wt)
+        );
+        progDiv.style.display = wt === 'progressive' ? 'block' : 'none';
+        this._saveChoicesConfig();
+        this._refreshSineDistractorPreview(type, idx);
+      };
+      return btn;
+    };
+    modeRow.appendChild(makeModeBtn('連続波', 'continuous'));
+    modeRow.appendChild(makeModeBtn('先頭あり', 'progressive'));
+    params.appendChild(modeRow);
+
+    // 先頭ありパラメータ（x0 + invertPhase）
+    const progDiv = document.createElement('div');
+    progDiv.className = 'sine-distractor-prog-params';
+    progDiv.style.display = sc.waveType === 'progressive' ? 'block' : 'none';
+    progDiv.appendChild(makeNumInput('先頭 x0', `${pfx}-x0`, sc.x0 ?? 0, -10, 10, 1));
+    const invRow = document.createElement('div');
+    invRow.className = 'sine-check-row';
+    const invCb = document.createElement('input');
+    invCb.type = 'checkbox'; invCb.id = `${pfx}-inv`; invCb.checked = sc.invertPhase ?? false;
+    invCb.onchange = () => {
+      sc.invertPhase = invCb.checked;
+      this._saveChoicesConfig();
+      this._refreshSineDistractorPreview(type, idx);
+    };
+    const invLbl = document.createElement('label');
+    invLbl.htmlFor = `${pfx}-inv`;
+    invLbl.textContent = '逆位相で折り返す';
+    invRow.appendChild(invCb);
+    invRow.appendChild(invLbl);
+    progDiv.appendChild(invRow);
+    params.appendChild(progDiv);
+    root.appendChild(params);
+
+    // ── プレビュー Canvas ──────────────────────────────────────
+    const previewCanvas = document.createElement('canvas');
+    previewCanvas.id = `${pfx}-preview`;
+    root.appendChild(previewCanvas);
+
+    // DOM 確定後に描画
+    setTimeout(() => this._refreshSineDistractorPreview(type, idx), 0);
+
+    // _choiceEditors の長さをずらさないよう null を挿入
+    this._choiceEditors[type].push(null);
+
+    return root;
+  },
+
+  /** 正弦波 distractor パラメータ入力 → SineWave を更新 → プレビュー再描画 */
+  _onSineDistractorChange(type, idx) {
+    const sw = this.choicesConfig[type].distractors[idx];
+    if (!(sw instanceof SineWave)) return;
+    const sc  = sw.sineConfig;
+    const pfx = `distractor-${type}-${idx}-sine`;
+
+    const amp = parseFloat(document.getElementById(`${pfx}-amp`)?.value);
+    const wl  = parseFloat(document.getElementById(`${pfx}-wl`)?.value);
+    const ps  = parseFloat(document.getElementById(`${pfx}-ps`)?.value);
+    const x0  = parseFloat(document.getElementById(`${pfx}-x0`)?.value);
+    if (!isNaN(amp) && amp > 0) sc.amplitude  = amp;
+    if (!isNaN(wl)  && wl > 0)  sc.wavelength = wl;
+    if (!isNaN(ps))              sc.phaseShift = ps;
+    if (!isNaN(x0))              sc.x0         = x0;
+
+    this._saveChoicesConfig();
+    this._refreshSineDistractorPreview(type, idx);
+  },
+
+  /** 正弦波 distractor のプレビュー Canvas を再描画 */
+  _refreshSineDistractorPreview(type, idx) {
+    const sw = this.choicesConfig[type].distractors[idx];
+    if (!(sw instanceof SineWave)) return;
+    const pfx    = `distractor-${type}-${idx}-sine`;
+    const canvas = document.getElementById(`${pfx}-preview`);
+    if (!canvas) return;
+
+    const gridCfg = this._distractorGridConfig(type);
+    const size    = this._distractorCanvasSize(type);
+    canvas.width        = size.width;
+    canvas.height       = size.height;
+    canvas.style.width  = `${size.width}px`;
+    canvas.style.height = `${size.height}px`;
+
+    const renderer = new WaveRenderer(canvas, Object.assign({}, gridCfg, {
+      gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
+    }));
+    renderer.clear();
+    renderer.drawGrid();
+    renderer.drawAxes();
+
+    const pts   = sw.getSnapshot(gridCfg.xMin, gridCfg.xMax, 0);
+    const style = this.styleConfig ? this.styleConfig.waveSingle : {};
+    renderer.drawWave(pts, style);
+  },
+
+  /** 正答 Canvas を生成（ProblemGenerator のヘルパーを使用） */
   _renderCorrectChoiceCanvas(type) {
     const gen = new ProblemGenerator({
       gridConfig:  this.gridConfig,
@@ -382,30 +820,30 @@ const App = {
     });
 
     if (type === 'type3') {
-      if (this.waveA.vertices.length === 0) return null;
+      if (this._activeWaveA().isEmpty()) return null;
       const x    = parseFloat(document.getElementById('p3-x').value);
       const tMax = parseInt(document.getElementById('p3-tMax').value, 10);
       if (isNaN(x) || isNaN(tMax) || tMax < 1) return null;
-      return gen.renderType3CorrectCanvas(this.waveA, x, tMax);
+      return gen.renderType3CorrectCanvas(this._activeWaveA(), x, tMax);
     } else if (type === 'type4') {
       if (!this.hasWaveB) return null;
-      if (this.waveA.vertices.length === 0 || this.waveB.vertices.length === 0) return null;
+      if (this._activeWaveA().isEmpty() || this._activeWaveB().isEmpty()) return null;
       const t = parseInt(document.getElementById('p4-answerT').value, 10);
       if (isNaN(t) || t < 1) return null;
       // 速さも最新化
       const sa = parseFloat(document.getElementById('waveASpeed').value);
       const sb = parseFloat(document.getElementById('waveBSpeed').value);
-      if (!isNaN(sa)) this.waveA.speed = sa;
-      if (!isNaN(sb)) this.waveB.speed = sb;
-      return gen.renderType4CorrectCanvas(this.waveA, this.waveB, t);
+      if (!isNaN(sa)) { this.waveA.speed = sa; if (this.waveASine) this.waveASine.speed = sa; }
+      if (!isNaN(sb)) { this.waveB.speed = sb; if (this.waveBSine) this.waveBSine.speed = sb; }
+      return gen.renderType4CorrectCanvas(this._activeWaveA(), this._activeWaveB(), t);
     } else if (type === 'type6') {
-      if (!this.reflectionConfig.enabled || this.waveA.vertices.length === 0) return null;
+      if (!this.reflectionConfig.enabled || this._activeWaveA().isEmpty()) return null;
       const t = parseInt(document.getElementById('t6-answer').value, 10);
       if (isNaN(t) || t < 1) return null;
       const sa = parseFloat(document.getElementById('waveASpeed').value);
-      if (!isNaN(sa)) this.waveA.speed = sa;
+      if (!isNaN(sa)) { this.waveA.speed = sa; if (this.waveASine) this.waveASine.speed = sa; }
       return gen.renderType6CorrectCanvas(
-        this.waveA, this.reflectionConfig.boundary, this.reflectionConfig.endType, t
+        this._activeWaveA(), this.reflectionConfig.boundary, this.reflectionConfig.endType, t
       );
     }
     return null;
@@ -593,6 +1031,12 @@ const App = {
   _setupEditorA() {
     const canvas = document.getElementById('editorCanvasA');
     this._applyEditorCanvasSize(canvas);
+    // 正弦波モードのときはエディタを生成せずプレビュー描画
+    if (this.waveAMode === 'sine') {
+      if (this.editorA) { this.editorA.destroy(); this.editorA = null; }
+      this._renderSineWavePreview('A');
+      return;
+    }
     const extra = this.reflectionConfig.enabled ? {
       boundary:          this.reflectionConfig.boundary,
       boundaryDirection: this.waveA.direction,
@@ -612,6 +1056,12 @@ const App = {
   _setupEditorB() {
     const canvas = document.getElementById('editorCanvasB');
     this._applyEditorCanvasSize(canvas);
+    // 正弦波モードのときはエディタを生成せずプレビュー描画
+    if (this.waveBMode === 'sine') {
+      if (this.editorB) { this.editorB.destroy(); this.editorB = null; }
+      this._renderSineWavePreview('B');
+      return;
+    }
     const renderer = new WaveRenderer(canvas, Object.assign({}, this.gridConfig, {
       gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
     }));
@@ -756,6 +1206,9 @@ const App = {
   setDirection(waveName, dir) {
     const wave = waveName === 'A' ? this.waveA : this.waveB;
     wave.direction = dir;
+    // SineWave にも反映
+    const sw = this[`wave${waveName}Sine`];
+    if (sw) sw.direction = dir;
 
     const prefix = waveName === 'A' ? 'waveA' : 'waveB';
     document.getElementById(`${prefix}DirRight`).classList.toggle('active', dir === 1);
@@ -763,6 +1216,7 @@ const App = {
     // 反射モード中は入射波の向きが変わるためエディタのグレー領域も更新
     if (waveName === 'A' && this.reflectionConfig.enabled) this._setupEditorA();
     this._refreshActiveChoicesPanel();
+    this._renderSineWavePreview(waveName);
   },
 
   // ------------------------------------------------------------------
@@ -784,12 +1238,18 @@ const App = {
   // ------------------------------------------------------------------
   _bindSpeedInputs() {
     document.getElementById('waveASpeed').addEventListener('change', e => {
-      const v = parseFloat(e.target.value); this.waveA.speed = isNaN(v) ? 1 : v;
+      const v = parseFloat(e.target.value);
+      this.waveA.speed = isNaN(v) ? 1 : v;
+      if (this.waveASine) this.waveASine.speed = this.waveA.speed;
       this._refreshActiveChoicesPanel();
+      this._renderSineWavePreview('A');
     });
     document.getElementById('waveBSpeed').addEventListener('change', e => {
-      const v = parseFloat(e.target.value); this.waveB.speed = isNaN(v) ? 1 : v;
+      const v = parseFloat(e.target.value);
+      this.waveB.speed = isNaN(v) ? 1 : v;
+      if (this.waveBSine) this.waveBSine.speed = this.waveB.speed;
       this._refreshActiveChoicesPanel();
+      this._renderSineWavePreview('B');
     });
   },
 
@@ -812,16 +1272,16 @@ const App = {
    * 波形なし（全頂点空）の場合は 0 を返す。
    */
   _computeMaxDisplacement() {
-    if (this.waveA.vertices.length === 0) return 0;
+    if (this._activeWaveA().isEmpty()) return 0;
 
     const { xMin, xMax } = this.gridConfig;
 
     // 反射波モード: 入射波最大振幅×2 を上限とする（構成的干渉の最悪ケース）
     if (this.reflectionConfig.enabled) {
-      return Math.max(...this.waveA.vertices.map(v => Math.abs(v.y))) * 2;
+      return this._activeWaveA().getMaxAmplitude() * 2;
     }
 
-    const hasB = this.hasWaveB && this.waveB.vertices.length > 0;
+    const hasB = this.hasWaveB && !this._activeWaveB().isEmpty();
     const tMax  = (xMax - xMin) * 2; // 両波が領域を一往復する時間
     const tStep = 0.25;
     const xStep = 0.25;
@@ -829,8 +1289,8 @@ const App = {
 
     for (let t = 0; t <= tMax; t += tStep) {
       for (let x = xMin; x <= xMax; x += xStep) {
-        const yA = this.waveA.getYAtTime(x, t);
-        const yB = hasB ? this.waveB.getYAtTime(x, t) : 0;
+        const yA = this._activeWaveA().getYAtTime(x, t);
+        const yB = hasB ? this._activeWaveB().getYAtTime(x, t) : 0;
         const abs = Math.abs(yA + yB);
         if (abs > maxY) maxY = abs;
       }
@@ -893,7 +1353,7 @@ const App = {
       });
       for (let t = 0; t <= tMax; t++) {
         const canvas = gen._renderReflectionCanvas(
-          this.waveA, this.reflectionConfig.boundary, this.reflectionConfig.endType, t
+          this._activeWaveA(), this.reflectionConfig.boundary, this.reflectionConfig.endType, t
         );
         const dlBtn = document.createElement('button');
         dlBtn.textContent = `t=${t}s PNG`;
@@ -908,7 +1368,7 @@ const App = {
       return;
     }
 
-    const waves  = this.hasWaveB ? [this.waveA, this.waveB] : [this.waveA];
+    const waves  = this.hasWaveB ? [this._activeWaveA(), this._activeWaveB()] : [this._activeWaveA()];
     const sc = this.styleConfig;
     const styles = this.hasWaveB
       ? [sc.waveA, sc.waveB]
@@ -991,14 +1451,16 @@ const App = {
   // 設問生成
   // ------------------------------------------------------------------
   generateProblem() {
-    // 速さを最新化
+    // 速さを最新化（vertex + sine 両インスタンスに反映）
     const _spd = (id) => { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? 1 : v; };
     this.waveA.speed = _spd('waveASpeed');
+    if (this.waveASine) this.waveASine.speed = this.waveA.speed;
     if (this.hasWaveB) {
       this.waveB.speed = _spd('waveBSpeed');
+      if (this.waveBSine) this.waveBSine.speed = this.waveB.speed;
     }
 
-    if (this.waveA.vertices.length === 0) {
+    if (this._activeWaveA().isEmpty()) {
       alert('波Aの波形が入力されていません。波形編集タブで波形を描いてください。');
       return;
     }
@@ -1019,36 +1481,36 @@ const App = {
 
       if (type === 'type1') {
         const answerT = _int('p1-answerT', 2);
-        result = generator.generateType1({ wave: this.waveA, answerT });
+        result = generator.generateType1({ wave: this._activeWaveA(), answerT });
       } else if (type === 'type2') {
         const t = _int('p2-t', 1);
         const x = _float('p2-x', 3);
-        result = generator.generateType2({ wave: this.waveA, x, t });
+        result = generator.generateType2({ wave: this._activeWaveA(), x, t });
       } else if (type === 'type3') {
         const x    = _float('p3-x', 3);
         const tMax = _int('p3-tMax', 5);
-        result = generator.generateType3({ wave: this.waveA, x, tMax });
+        result = generator.generateType3({ wave: this._activeWaveA(), x, tMax });
       } else if (type === 'type4') {
-        if (!this.hasWaveB || this.waveB.vertices.length === 0) {
+        if (!this.hasWaveB || this._activeWaveB().isEmpty()) {
           alert('Type 4 には波Bの波形が必要です。');
           return;
         }
         const answerT = _int('p4-answerT', 2);
-        result = generator.generateType4({ waveA: this.waveA, waveB: this.waveB, answerT });
+        result = generator.generateType4({ waveA: this._activeWaveA(), waveB: this._activeWaveB(), answerT });
       } else if (type === 'type5') {
-        if (!this.hasWaveB || this.waveB.vertices.length === 0) {
+        if (!this.hasWaveB || this._activeWaveB().isEmpty()) {
           alert('Type 5 には波Bの波形が必要です。');
           return;
         }
         const tStart = _int('p5-tStart', 0);
         const tEnd   = _int('p5-tEnd',   5);
         if (tEnd <= tStart) { alert('終了時刻は開始時刻より大きくしてください。'); return; }
-        result = generator.generateType5({ waveA: this.waveA, waveB: this.waveB, tStart, tEnd });
+        result = generator.generateType5({ waveA: this._activeWaveA(), waveB: this._activeWaveB(), tStart, tEnd });
       } else if (type === 'type6') {
         if (!this.reflectionConfig.enabled) { alert('反射波モードが有効ではありません。'); return; }
         const answerT = _int('t6-answer', 3);
         result = generator.generateType6({
-          waveA:        this.waveA,
+          waveA:        this._activeWaveA(),
           boundary:     this.reflectionConfig.boundary,
           endType:      this.reflectionConfig.endType,
           answerT,
@@ -1064,7 +1526,7 @@ const App = {
         const tEnd   = _int('t7-end',   5);
         if (tEnd <= tStart) { alert('終了時刻は開始時刻より大きくしてください。'); return; }
         result = generator.generateType7({
-          waveA:    this.waveA,
+          waveA:    this._activeWaveA(),
           boundary: this.reflectionConfig.boundary,
           endType:  this.reflectionConfig.endType,
           tStart,
@@ -1136,15 +1598,15 @@ const App = {
     if (type === 'type3') {
       const x    = parseFloat(document.getElementById('p3-x').value);
       const tMax = parseInt(document.getElementById('p3-tMax').value, 10);
-      return `t3|${JSON.stringify(this.waveA.toJSON())}|x=${x}|tMax=${tMax}|n=${cfg.count}`;
+      return `t3|${JSON.stringify(this._activeWaveA().toJSON())}|x=${x}|tMax=${tMax}|n=${cfg.count}`;
     }
     if (type === 'type6') {
       const t = parseInt(document.getElementById('t6-answer').value, 10);
-      return `t6|A=${JSON.stringify(this.waveA.toJSON())}|b=${this.reflectionConfig.boundary}|e=${this.reflectionConfig.endType}|t=${t}|n=${cfg.count}`;
+      return `t6|A=${JSON.stringify(this._activeWaveA().toJSON())}|b=${this.reflectionConfig.boundary}|e=${this.reflectionConfig.endType}|t=${t}|n=${cfg.count}`;
     }
     // type4
     const t = parseInt(document.getElementById('p4-answerT').value, 10);
-    return `t4|A=${JSON.stringify(this.waveA.toJSON())}|B=${JSON.stringify(this.waveB.toJSON())}|t=${t}|n=${cfg.count}`;
+    return `t4|A=${JSON.stringify(this._activeWaveA().toJSON())}|B=${JSON.stringify(this._activeWaveB().toJSON())}|t=${t}|n=${cfg.count}`;
   },
 
   // ------------------------------------------------------------------

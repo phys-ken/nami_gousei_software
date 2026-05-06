@@ -28,6 +28,7 @@ function buildState(spec, sandbox) {
 
 function buildWave(json, sandbox) {
   if (!json) return null;
+  if (json.sineMode) return new sandbox.SineWave().fromJSON(json);
   return new sandbox.Wave().fromJSON(json);
 }
 
@@ -145,17 +146,17 @@ function autoAdjustYRange(spec, state, sandbox) {
   if (spec.grid && (spec.grid.yMin !== undefined || spec.grid.yMax !== undefined)) return;
 
   const waveA = buildWave(spec.waveA, sandbox);
-  if (!waveA || waveA.vertices.length === 0) return;
+  if (!waveA || waveA.isEmpty()) return;
 
   const { xMin, xMax } = state.gridConfig;
   let maxY;
 
   if (spec.type === 6 || spec.type === 7) {
     // 反射波モード: 頂点最大振幅 × 2（構成的干渉の最悪ケース）
-    maxY = Math.max(...waveA.vertices.map(v => Math.abs(v.y))) * 2;
+    maxY = waveA.getMaxAmplitude() * 2;
   } else {
     const waveB = spec.waveB ? buildWave(spec.waveB, sandbox) : null;
-    const hasB  = waveB && waveB.vertices.length > 0;
+    const hasB  = waveB && !waveB.isEmpty();
     const tMax  = (xMax - xMin) * 2;
     const tStep = 0.25;
     const xStep = 0.25;

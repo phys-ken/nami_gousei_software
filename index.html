@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>波の重ね合わせ 設問作成ソフト</title>
+  <title>波動　設問作成ソフト</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -12,7 +12,7 @@
      ヘッダー
      ======================================================== -->
 <header>
-  <h1>波の重ね合わせ &nbsp;設問作成ソフト</h1>
+  <h1>波動&nbsp;&nbsp;設問作成ソフト</h1>
   <span class="header-sub">物理基礎 授業用ツール</span>
 </header>
 
@@ -59,24 +59,42 @@
         </div>
       </details>
 
+      <p class="apply-hint">軸範囲・1目盛りサイズをCanvasに反映します</p>
       <div class="btn-row">
-        <button class="btn-primary" onclick="App.applyGridConfig()">適用</button>
+        <button class="btn-primary" onclick="App.applyGridConfig()">グリッドを適用</button>
       </div>
     </div>
 
     <!-- 描画スタイル設定 -->
     <div class="settings-group">
-      <h3>描画スタイル</h3>
+      <div class="section-heading-row">
+        <h3>描画スタイル</h3>
+        <label for="styleInfoToggle" class="info-icon-btn" title="描画スタイルの説明を表示">ⓘ</label>
+      </div>
+      <input type="checkbox" id="styleInfoToggle" class="info-toggle-input">
+      <div class="info-inline-content">
+        <p><strong>グレー</strong>：画面表示向き（薄いグリッド・カラー）</p>
+        <p><strong>白黒</strong>：印刷・配布向き（濃い格子・線種で区別）</p>
+        <p><strong>カスタム…</strong>：色・太さ・破線を個別に設定</p>
+      </div>
       <div class="style-preset-row">
-        <button id="presetBtn_gray"   class="style-preset-btn active" onclick="App.applyStylePreset('gray')">グレー</button>
-        <button id="presetBtn_bw"     class="style-preset-btn"        onclick="App.applyStylePreset('bw')">白黒</button>
-        <button id="presetBtn_custom" class="style-preset-btn"        onclick="App.applyStylePreset('custom')">カスタム…</button>
+        <button id="presetBtn_gray"   class="style-preset-btn active" onclick="App.applyStylePreset('gray')" title="画面表示向け（薄いグリッド線・波を色で区別）">グレー</button>
+        <button id="presetBtn_bw"     class="style-preset-btn"        onclick="App.applyStylePreset('bw')" title="印刷・配布向け（濃い格子・入射波は点線・反射波は破線）">白黒</button>
+        <button id="presetBtn_custom" class="style-preset-btn"        onclick="App.applyStylePreset('custom')" title="線の色・太さ・破線パターンを個別に設定">カスタム…</button>
       </div>
     </div>
 
     <!-- 波 A 設定 -->
-    <div class="settings-group">
+    <div class="settings-group wave-section">
       <h3>波 A</h3>
+      <!-- 入力方式トグル -->
+      <div class="setting-row">
+        <label>入力方式</label>
+        <div class="dir-group">
+          <button id="waveAModeVertex" class="dir-btn active" onclick="App.setWaveMode('A','vertex')">折れ線</button>
+          <button id="waveAModeSine"   class="dir-btn"        onclick="App.setWaveMode('A','sine')">正弦波</button>
+        </div>
+      </div>
       <div class="setting-row">
         <label>速さ</label>
         <input type="number" id="waveASpeed" value="1" min="0.5" step="0.5">
@@ -89,14 +107,62 @@
           <button id="waveADirLeft"  class="dir-btn"        onclick="App.setDirection('A', -1)">←</button>
         </div>
       </div>
+      <!-- 正弦波パラメータ（正弦波モード時のみ表示） -->
+      <div id="waveASineParams" style="display:none">
+        <div class="setting-row">
+          <label>振幅</label>
+          <input type="number" id="waveASineAmplitude" value="1" min="1" step="1"
+                 onchange="App.onSineParamChange('A')">
+        </div>
+        <div class="setting-row">
+          <label>波長</label>
+          <input type="number" id="waveASineWavelength" value="4" min="2" step="1"
+                 onchange="App.onSineParamChange('A')">
+        </div>
+        <div class="setting-row">
+          <label>平行移動（右が正）</label>
+          <input type="number" id="waveASinePhaseShift" value="0" step="1"
+                 onchange="App.onSineParamChange('A')">
+        </div>
+        <div class="setting-row">
+          <label>波の範囲</label>
+          <div class="dir-group">
+            <button id="waveASineModeContinuous"   class="dir-btn active" onclick="App.onSineSubMode('A','continuous')">連続波</button>
+            <button id="waveASineModeProgressive"  class="dir-btn"        onclick="App.onSineSubMode('A','progressive')">先頭あり</button>
+          </div>
+        </div>
+        <!-- 先頭あり進行波のみ表示 -->
+        <div id="waveASineProgressiveParams" style="display:none">
+          <div class="setting-row">
+            <label>始点 x0（整数）</label>
+            <input type="number" id="waveASineX0" value="0" step="1"
+                   onchange="App.onSineParamChange('A')">
+          </div>
+          <div class="setting-row sine-check-row">
+            <label>
+              <input type="checkbox" id="waveASineInvertPhase"
+                     onchange="App.onSineParamChange('A')">
+              上下反転
+            </label>
+          </div>
+        </div>
+      </div>
       <div class="btn-row">
         <button class="btn-danger" onclick="App.clearWave('A')">クリア</button>
       </div>
     </div>
 
     <!-- 波 B 設定（追加後に表示） -->
-    <div class="settings-group" id="waveBSection" style="display:none">
+    <div class="settings-group wave-section" id="waveBSection" style="display:none">
       <h3>波 B</h3>
+      <!-- 入力方式トグル -->
+      <div class="setting-row">
+        <label>入力方式</label>
+        <div class="dir-group">
+          <button id="waveBModeVertex" class="dir-btn active" onclick="App.setWaveMode('B','vertex')">折れ線</button>
+          <button id="waveBModeSine"   class="dir-btn"        onclick="App.setWaveMode('B','sine')">正弦波</button>
+        </div>
+      </div>
       <div class="setting-row">
         <label>速さ</label>
         <input type="number" id="waveBSpeed" value="1" min="0.5" step="0.5">
@@ -107,6 +173,46 @@
         <div class="dir-group">
           <button id="waveBDirRight" class="dir-btn"        onclick="App.setDirection('B', 1)">→</button>
           <button id="waveBDirLeft"  class="dir-btn active" onclick="App.setDirection('B', -1)">←</button>
+        </div>
+      </div>
+      <!-- 正弦波パラメータ（正弦波モード時のみ表示） -->
+      <div id="waveBSineParams" style="display:none">
+        <div class="setting-row">
+          <label>振幅</label>
+          <input type="number" id="waveBSineAmplitude" value="1" min="1" step="1"
+                 onchange="App.onSineParamChange('B')">
+        </div>
+        <div class="setting-row">
+          <label>波長</label>
+          <input type="number" id="waveBSineWavelength" value="4" min="2" step="1"
+                 onchange="App.onSineParamChange('B')">
+        </div>
+        <div class="setting-row">
+          <label>平行移動（右が正）</label>
+          <input type="number" id="waveBSinePhaseShift" value="0" step="1"
+                 onchange="App.onSineParamChange('B')">
+        </div>
+        <div class="setting-row">
+          <label>波の範囲</label>
+          <div class="dir-group">
+            <button id="waveBSineModeContinuous"   class="dir-btn active" onclick="App.onSineSubMode('B','continuous')">連続波</button>
+            <button id="waveBSineModeProgressive"  class="dir-btn"        onclick="App.onSineSubMode('B','progressive')">先頭あり</button>
+          </div>
+        </div>
+        <!-- 先頭あり進行波のみ表示 -->
+        <div id="waveBSineProgressiveParams" style="display:none">
+          <div class="setting-row">
+            <label>始点 x0（整数）</label>
+            <input type="number" id="waveBSineX0" value="0" step="1"
+                   onchange="App.onSineParamChange('B')">
+          </div>
+          <div class="setting-row sine-check-row">
+            <label>
+              <input type="checkbox" id="waveBSineInvertPhase"
+                     onchange="App.onSineParamChange('B')">
+              上下反転
+            </label>
+          </div>
         </div>
       </div>
       <div class="btn-row">
@@ -122,7 +228,7 @@
 
     <!-- 反射波モード追加ボタン -->
     <div class="settings-group">
-      <button id="addReflectionBtn" class="btn-ghost" onclick="App._toggleReflectionMode(true)">＋ 反射波モードを追加</button>
+      <button id="addReflectionBtn" class="btn-ghost" onclick="App._toggleReflectionMode(true)">＋ 反射波を追加</button>
     </div>
 
     <!-- 反射波設定セクション（初期は非表示） -->

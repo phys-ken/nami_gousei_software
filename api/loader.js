@@ -14,7 +14,7 @@ function loadIntoSandbox(sandbox, filePath, exposeNames) {
 }
 
 const JS_FILES = [
-  { file: 'wave.js',     expose: ['Wave'] },
+  { file: 'wave.js',     expose: ['Wave', 'SineWave'] },
   { file: 'random.js',   expose: ['SeededRandom'] },
   { file: 'styles.js',   expose: ['STYLE_PRESETS', 'cloneStylePreset'] },
   { file: 'renderer.js', expose: ['WaveRenderer'] },

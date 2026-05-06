@@ -92,7 +92,7 @@ class ProblemGenerator {
 
     const c = r.config;
     waves.forEach((wave, i) => {
-      if (!wave || wave.vertices.length === 0) return;
+      if (!wave || wave.isEmpty()) return;
       r.drawWave(wave.getSnapshot(c.xMin, c.xMax, t), styles[i] || {});
     });
 
@@ -133,9 +133,9 @@ class ProblemGenerator {
     r.drawTimeLabel(t);
 
     const { xMin, xMax } = r.config;
-    if (waveA.vertices.length > 0)
+    if (!waveA.isEmpty())
       r.drawWave(waveA.getSnapshot(xMin, xMax, t), this._styleA);
-    if (waveB.vertices.length > 0)
+    if (!waveB.isEmpty())
       r.drawWave(waveB.getSnapshot(xMin, xMax, t), this._styleB);
 
     // 凡例（合成波の行を含まない）
@@ -157,23 +157,42 @@ class ProblemGenerator {
 
     const { xMin, xMax } = r.config;
 
-    if (waveA.vertices.length > 0)
+    if (!waveA.isEmpty())
       r.drawWave(waveA.getSnapshot(xMin, xMax, t), this._styleA);
-    if (waveB.vertices.length > 0)
+    if (!waveB.isEmpty())
       r.drawWave(waveB.getSnapshot(xMin, xMax, t), this._styleB);
 
     // 合成波（全頂点位置を union して正確に描画）
-    const xSet = new Set();
-    for (let xi = Math.floor(xMin); xi <= Math.ceil(xMax); xi++) xSet.add(xi);
-    const shiftA = waveA.direction * waveA.speed * t;
-    const shiftB = waveB.direction * waveB.speed * t;
-    waveA.vertices.forEach(v => xSet.add(v.x + shiftA));
-    waveB.vertices.forEach(v => xSet.add(v.x + shiftB));
+    // SineWave は getKeyXs が [] を返すため、その場合は密サンプリングにフォールバック
+    const keyA = waveA.getKeyXs(t);
+    const keyB = waveB.getKeyXs(t);
+    const needsDense = (!waveA.isEmpty() && keyA.length === 0) ||
+                       (!waveB.isEmpty() && keyB.length === 0);
 
-    const sumPts = [...xSet]
-      .sort((a, b) => a - b)
-      .filter(xi => xi >= xMin && xi <= xMax)
-      .map(xi => ({ x: xi, y: waveA.getYAtTime(xi, t) + waveB.getYAtTime(xi, t) }));
+    let sumPts;
+    if (needsDense) {
+      const STEP = 0.05;
+      const count = Math.ceil((xMax - xMin) / STEP);
+      sumPts = [];
+      for (let i = 0; i <= count; i++) {
+        const xi = Math.round((xMin + i * STEP) * 10000) / 10000;
+        if (xi > xMax + 1e-9) break;
+        sumPts.push({ x: xi, y: waveA.getYAtTime(xi, t) + waveB.getYAtTime(xi, t) });
+      }
+      const lastX = sumPts.length > 0 ? sumPts[sumPts.length - 1].x : xMin;
+      if (Math.abs(lastX - xMax) > 1e-9) {
+        sumPts.push({ x: xMax, y: waveA.getYAtTime(xMax, t) + waveB.getYAtTime(xMax, t) });
+      }
+    } else {
+      const xSet = new Set();
+      for (let xi = Math.floor(xMin); xi <= Math.ceil(xMax); xi++) xSet.add(xi);
+      keyA.forEach(sx => xSet.add(sx));
+      keyB.forEach(sx => xSet.add(sx));
+      sumPts = [...xSet]
+        .sort((a, b) => a - b)
+        .filter(xi => xi >= xMin && xi <= xMax)
+        .map(xi => ({ x: xi, y: waveA.getYAtTime(xi, t) + waveB.getYAtTime(xi, t) }));
+    }
 
     r.drawWave(sumPts, this._styleSum);
     r.drawLegend(this._legendAB);
@@ -241,7 +260,7 @@ class ProblemGenerator {
     r.clear();
     r.drawGrid();
     r.drawAxes({ xLabel: 't [s]', yLabel: 'y [cm]' });
-    if (distractorWave && distractorWave.vertices.length > 0) {
+    if (distractorWave && !distractorWave.isEmpty()) {
       // distractor は静的な折れ線（伝播しない）→ getSnapshot(_, _, 0) を使う
       const pts = distractorWave.getSnapshot(0, tMax, 0);
       r.drawWave(pts, this._styleSingle);
@@ -262,16 +281,36 @@ class ProblemGenerator {
     r.drawTimeLabel(t);
     const { xMin, xMax } = r.config;
 
-    const xSet = new Set();
-    for (let xi = Math.floor(xMin); xi <= Math.ceil(xMax); xi++) xSet.add(xi);
-    const shiftA = waveA.direction * waveA.speed * t;
-    const shiftB = waveB.direction * waveB.speed * t;
-    waveA.vertices.forEach(v => xSet.add(v.x + shiftA));
-    waveB.vertices.forEach(v => xSet.add(v.x + shiftB));
-    const sumPts = [...xSet]
-      .sort((a, b) => a - b)
-      .filter(xi => xi >= xMin && xi <= xMax)
-      .map(xi => ({ x: xi, y: waveA.getYAtTime(xi, t) + waveB.getYAtTime(xi, t) }));
+    // SineWave は getKeyXs が [] を返すため、その場合は密サンプリングにフォールバック
+    const keyA = waveA.getKeyXs(t);
+    const keyB = waveB.getKeyXs(t);
+    const needsDense = (!waveA.isEmpty() && keyA.length === 0) ||
+                       (!waveB.isEmpty() && keyB.length === 0);
+
+    let sumPts;
+    if (needsDense) {
+      const STEP = 0.05;
+      const count = Math.ceil((xMax - xMin) / STEP);
+      sumPts = [];
+      for (let i = 0; i <= count; i++) {
+        const xi = Math.round((xMin + i * STEP) * 10000) / 10000;
+        if (xi > xMax + 1e-9) break;
+        sumPts.push({ x: xi, y: waveA.getYAtTime(xi, t) + waveB.getYAtTime(xi, t) });
+      }
+      const lastX = sumPts.length > 0 ? sumPts[sumPts.length - 1].x : xMin;
+      if (Math.abs(lastX - xMax) > 1e-9) {
+        sumPts.push({ x: xMax, y: waveA.getYAtTime(xMax, t) + waveB.getYAtTime(xMax, t) });
+      }
+    } else {
+      const xSet = new Set();
+      for (let xi = Math.floor(xMin); xi <= Math.ceil(xMax); xi++) xSet.add(xi);
+      keyA.forEach(sx => xSet.add(sx));
+      keyB.forEach(sx => xSet.add(sx));
+      sumPts = [...xSet]
+        .sort((a, b) => a - b)
+        .filter(xi => xi >= xMin && xi <= xMax)
+        .map(xi => ({ x: xi, y: waveA.getYAtTime(xi, t) + waveB.getYAtTime(xi, t) }));
+    }
     r.drawWave(sumPts, this._styleSum);
     return canvas;
   }
@@ -286,7 +325,7 @@ class ProblemGenerator {
     r.drawGrid();
     r.drawAxes();
     r.drawTimeLabel(t);
-    if (distractorWave && distractorWave.vertices.length > 0) {
+    if (distractorWave && !distractorWave.isEmpty()) {
       const { xMin, xMax } = r.config;
       // distractor は静的な折れ線（伝播しない）→ t=0 として描画
       const pts = distractorWave.getSnapshot(xMin, xMax, 0);
@@ -505,14 +544,7 @@ class ProblemGenerator {
    * 固定端: x → 2*boundary - x, y 反転
    */
   _buildReflectedWave(incidentWave, boundary, endType) {
-    const w   = new Wave();
-    w.speed     = incidentWave.speed;
-    w.direction = -incidentWave.direction;
-    const sign  = endType === 'fixed' ? -1 : 1;
-    for (const v of incidentWave.vertices) {
-      w.setVertex(2 * boundary - v.x, sign * v.y);
-    }
-    return w;
+    return incidentWave.reflect(boundary, endType);
   }
 
   /**
@@ -557,37 +589,58 @@ class ProblemGenerator {
     const medXMax = dir > 0 ? boundary : xMax;
 
     // 入射波（全範囲）
-    if (showIncident && incidentWave.vertices.length > 0) {
+    if (showIncident && !incidentWave.isEmpty()) {
       r.drawWave(incidentWave.getSnapshot(xMin, xMax, t), this._styleA);
     }
 
     // 反射波（媒質内のみ）
-    if (showReflected && reflectedWave.vertices.length > 0) {
+    if (showReflected && !reflectedWave.isEmpty()) {
       const pts = reflectedWave.getSnapshot(medXMin, medXMax, t);
       if (pts.length >= 2) r.drawWave(pts, this._styleB);
     }
 
-    // 合成波（媒質内のみ）—— 全頂点位置を union して正確に描画
+    // 合成波（媒質内のみ）—— SineWave が絡む場合は密サンプリングにフォールバック
     if (showSum) {
-      const xSet = new Set();
-      for (let xi = Math.floor(medXMin); xi <= Math.ceil(medXMax); xi++) xSet.add(xi);
-      const shiftI = incidentWave.direction  * incidentWave.speed  * t;
-      const shiftR = reflectedWave.direction * reflectedWave.speed * t;
-      incidentWave.vertices.forEach(v => {
-        const sx = v.x + shiftI;
-        if (sx >= medXMin && sx <= medXMax) xSet.add(sx);
-      });
-      reflectedWave.vertices.forEach(v => {
-        const sx = v.x + shiftR;
-        if (sx >= medXMin && sx <= medXMax) xSet.add(sx);
-      });
-      const sumPts = [...xSet]
-        .sort((a, b) => a - b)
-        .filter(xi => xi >= medXMin && xi <= medXMax)
-        .map(xi => ({
-          x: xi,
-          y: incidentWave.getYAtTime(xi, t) + reflectedWave.getYAtTime(xi, t),
-        }));
+      // SineWave は getKeyXs が [] を返すため、その場合は密サンプリングにフォールバック
+      const incKeyXs = incidentWave.getKeyXs(t);
+      const refKeyXs = reflectedWave.getKeyXs(t);
+      const needsDense = (!incidentWave.isEmpty() && incKeyXs.length === 0) ||
+                         (!reflectedWave.isEmpty() && refKeyXs.length === 0);
+
+      let sumPts;
+      if (needsDense) {
+        const STEP = 0.05;
+        const count = Math.ceil((medXMax - medXMin) / STEP);
+        sumPts = [];
+        for (let i = 0; i <= count; i++) {
+          const xi = Math.round((medXMin + i * STEP) * 10000) / 10000;
+          if (xi > medXMax + 1e-9) break;
+          sumPts.push({
+            x: xi,
+            y: incidentWave.getYAtTime(xi, t) + reflectedWave.getYAtTime(xi, t),
+          });
+        }
+        const lastX = sumPts.length > 0 ? sumPts[sumPts.length - 1].x : medXMin;
+        if (Math.abs(lastX - medXMax) > 1e-9) {
+          sumPts.push({ x: medXMax, y: incidentWave.getYAtTime(medXMax, t) + reflectedWave.getYAtTime(medXMax, t) });
+        }
+      } else {
+        const xSet = new Set();
+        for (let xi = Math.floor(medXMin); xi <= Math.ceil(medXMax); xi++) xSet.add(xi);
+        incidentWave.getKeyXs(t).forEach(sx => {
+          if (sx >= medXMin && sx <= medXMax) xSet.add(sx);
+        });
+        reflectedWave.getKeyXs(t).forEach(sx => {
+          if (sx >= medXMin && sx <= medXMax) xSet.add(sx);
+        });
+        sumPts = [...xSet]
+          .sort((a, b) => a - b)
+          .filter(xi => xi >= medXMin && xi <= medXMax)
+          .map(xi => ({
+            x: xi,
+            y: incidentWave.getYAtTime(xi, t) + reflectedWave.getYAtTime(xi, t),
+          }));
+      }
       if (sumPts.length >= 2) r.drawWave(sumPts, this._styleSum);
     }
 
@@ -626,7 +679,7 @@ class ProblemGenerator {
     r.drawAxes();
     r.drawTimeLabel(t);
     r.drawBoundaryLine(boundary);
-    if (distractorWave && distractorWave.vertices.length > 0) {
+    if (distractorWave && !distractorWave.isEmpty()) {
       const { xMin, xMax } = r.config;
       r.drawWave(distractorWave.getSnapshot(xMin, xMax, 0), this._styleSum);
     }
