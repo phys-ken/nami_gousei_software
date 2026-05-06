@@ -596,30 +596,30 @@ const App = {
     });
 
     if (type === 'type3') {
-      if (this.waveA.isEmpty()) return null;
+      if (this._activeWaveA().isEmpty()) return null;
       const x    = parseFloat(document.getElementById('p3-x').value);
       const tMax = parseInt(document.getElementById('p3-tMax').value, 10);
       if (isNaN(x) || isNaN(tMax) || tMax < 1) return null;
-      return gen.renderType3CorrectCanvas(this.waveA, x, tMax);
+      return gen.renderType3CorrectCanvas(this._activeWaveA(), x, tMax);
     } else if (type === 'type4') {
       if (!this.hasWaveB) return null;
-      if (this.waveA.isEmpty() || this.waveB.isEmpty()) return null;
+      if (this._activeWaveA().isEmpty() || this._activeWaveB().isEmpty()) return null;
       const t = parseInt(document.getElementById('p4-answerT').value, 10);
       if (isNaN(t) || t < 1) return null;
       // 速さも最新化
       const sa = parseFloat(document.getElementById('waveASpeed').value);
       const sb = parseFloat(document.getElementById('waveBSpeed').value);
-      if (!isNaN(sa)) this.waveA.speed = sa;
-      if (!isNaN(sb)) this.waveB.speed = sb;
-      return gen.renderType4CorrectCanvas(this.waveA, this.waveB, t);
+      if (!isNaN(sa)) { this.waveA.speed = sa; if (this.waveASine) this.waveASine.speed = sa; }
+      if (!isNaN(sb)) { this.waveB.speed = sb; if (this.waveBSine) this.waveBSine.speed = sb; }
+      return gen.renderType4CorrectCanvas(this._activeWaveA(), this._activeWaveB(), t);
     } else if (type === 'type6') {
-      if (!this.reflectionConfig.enabled || this.waveA.isEmpty()) return null;
+      if (!this.reflectionConfig.enabled || this._activeWaveA().isEmpty()) return null;
       const t = parseInt(document.getElementById('t6-answer').value, 10);
       if (isNaN(t) || t < 1) return null;
       const sa = parseFloat(document.getElementById('waveASpeed').value);
-      if (!isNaN(sa)) this.waveA.speed = sa;
+      if (!isNaN(sa)) { this.waveA.speed = sa; if (this.waveASine) this.waveASine.speed = sa; }
       return gen.renderType6CorrectCanvas(
-        this.waveA, this.reflectionConfig.boundary, this.reflectionConfig.endType, t
+        this._activeWaveA(), this.reflectionConfig.boundary, this.reflectionConfig.endType, t
       );
     }
     return null;
@@ -1048,16 +1048,16 @@ const App = {
    * 波形なし（全頂点空）の場合は 0 を返す。
    */
   _computeMaxDisplacement() {
-    if (this.waveA.isEmpty()) return 0;
+    if (this._activeWaveA().isEmpty()) return 0;
 
     const { xMin, xMax } = this.gridConfig;
 
     // 反射波モード: 入射波最大振幅×2 を上限とする（構成的干渉の最悪ケース）
     if (this.reflectionConfig.enabled) {
-      return this.waveA.getMaxAmplitude() * 2;
+      return this._activeWaveA().getMaxAmplitude() * 2;
     }
 
-    const hasB = this.hasWaveB && !this.waveB.isEmpty();
+    const hasB = this.hasWaveB && !this._activeWaveB().isEmpty();
     const tMax  = (xMax - xMin) * 2; // 両波が領域を一往復する時間
     const tStep = 0.25;
     const xStep = 0.25;
@@ -1065,8 +1065,8 @@ const App = {
 
     for (let t = 0; t <= tMax; t += tStep) {
       for (let x = xMin; x <= xMax; x += xStep) {
-        const yA = this.waveA.getYAtTime(x, t);
-        const yB = hasB ? this.waveB.getYAtTime(x, t) : 0;
+        const yA = this._activeWaveA().getYAtTime(x, t);
+        const yB = hasB ? this._activeWaveB().getYAtTime(x, t) : 0;
         const abs = Math.abs(yA + yB);
         if (abs > maxY) maxY = abs;
       }
@@ -1227,14 +1227,16 @@ const App = {
   // 設問生成
   // ------------------------------------------------------------------
   generateProblem() {
-    // 速さを最新化
+    // 速さを最新化（vertex + sine 両インスタンスに反映）
     const _spd = (id) => { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? 1 : v; };
     this.waveA.speed = _spd('waveASpeed');
+    if (this.waveASine) this.waveASine.speed = this.waveA.speed;
     if (this.hasWaveB) {
       this.waveB.speed = _spd('waveBSpeed');
+      if (this.waveBSine) this.waveBSine.speed = this.waveB.speed;
     }
 
-    if (this.waveA.isEmpty()) {
+    if (this._activeWaveA().isEmpty()) {
       alert('波Aの波形が入力されていません。波形編集タブで波形を描いてください。');
       return;
     }
@@ -1255,36 +1257,36 @@ const App = {
 
       if (type === 'type1') {
         const answerT = _int('p1-answerT', 2);
-        result = generator.generateType1({ wave: this.waveA, answerT });
+        result = generator.generateType1({ wave: this._activeWaveA(), answerT });
       } else if (type === 'type2') {
         const t = _int('p2-t', 1);
         const x = _float('p2-x', 3);
-        result = generator.generateType2({ wave: this.waveA, x, t });
+        result = generator.generateType2({ wave: this._activeWaveA(), x, t });
       } else if (type === 'type3') {
         const x    = _float('p3-x', 3);
         const tMax = _int('p3-tMax', 5);
-        result = generator.generateType3({ wave: this.waveA, x, tMax });
+        result = generator.generateType3({ wave: this._activeWaveA(), x, tMax });
       } else if (type === 'type4') {
-        if (!this.hasWaveB || this.waveB.isEmpty()) {
+        if (!this.hasWaveB || this._activeWaveB().isEmpty()) {
           alert('Type 4 には波Bの波形が必要です。');
           return;
         }
         const answerT = _int('p4-answerT', 2);
-        result = generator.generateType4({ waveA: this.waveA, waveB: this.waveB, answerT });
+        result = generator.generateType4({ waveA: this._activeWaveA(), waveB: this._activeWaveB(), answerT });
       } else if (type === 'type5') {
-        if (!this.hasWaveB || this.waveB.isEmpty()) {
+        if (!this.hasWaveB || this._activeWaveB().isEmpty()) {
           alert('Type 5 には波Bの波形が必要です。');
           return;
         }
         const tStart = _int('p5-tStart', 0);
         const tEnd   = _int('p5-tEnd',   5);
         if (tEnd <= tStart) { alert('終了時刻は開始時刻より大きくしてください。'); return; }
-        result = generator.generateType5({ waveA: this.waveA, waveB: this.waveB, tStart, tEnd });
+        result = generator.generateType5({ waveA: this._activeWaveA(), waveB: this._activeWaveB(), tStart, tEnd });
       } else if (type === 'type6') {
         if (!this.reflectionConfig.enabled) { alert('反射波モードが有効ではありません。'); return; }
         const answerT = _int('t6-answer', 3);
         result = generator.generateType6({
-          waveA:        this.waveA,
+          waveA:        this._activeWaveA(),
           boundary:     this.reflectionConfig.boundary,
           endType:      this.reflectionConfig.endType,
           answerT,
@@ -1300,7 +1302,7 @@ const App = {
         const tEnd   = _int('t7-end',   5);
         if (tEnd <= tStart) { alert('終了時刻は開始時刻より大きくしてください。'); return; }
         result = generator.generateType7({
-          waveA:    this.waveA,
+          waveA:    this._activeWaveA(),
           boundary: this.reflectionConfig.boundary,
           endType:  this.reflectionConfig.endType,
           tStart,
@@ -1372,15 +1374,15 @@ const App = {
     if (type === 'type3') {
       const x    = parseFloat(document.getElementById('p3-x').value);
       const tMax = parseInt(document.getElementById('p3-tMax').value, 10);
-      return `t3|${JSON.stringify(this.waveA.toJSON())}|x=${x}|tMax=${tMax}|n=${cfg.count}`;
+      return `t3|${JSON.stringify(this._activeWaveA().toJSON())}|x=${x}|tMax=${tMax}|n=${cfg.count}`;
     }
     if (type === 'type6') {
       const t = parseInt(document.getElementById('t6-answer').value, 10);
-      return `t6|A=${JSON.stringify(this.waveA.toJSON())}|b=${this.reflectionConfig.boundary}|e=${this.reflectionConfig.endType}|t=${t}|n=${cfg.count}`;
+      return `t6|A=${JSON.stringify(this._activeWaveA().toJSON())}|b=${this.reflectionConfig.boundary}|e=${this.reflectionConfig.endType}|t=${t}|n=${cfg.count}`;
     }
     // type4
     const t = parseInt(document.getElementById('p4-answerT').value, 10);
-    return `t4|A=${JSON.stringify(this.waveA.toJSON())}|B=${JSON.stringify(this.waveB.toJSON())}|t=${t}|n=${cfg.count}`;
+    return `t4|A=${JSON.stringify(this._activeWaveA().toJSON())}|B=${JSON.stringify(this._activeWaveB().toJSON())}|t=${t}|n=${cfg.count}`;
   },
 
   // ------------------------------------------------------------------
