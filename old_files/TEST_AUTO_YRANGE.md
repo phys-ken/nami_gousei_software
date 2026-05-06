@@ -22,7 +22,7 @@
 3. 問題・解答 Canvas が正常表示される
 4. コンソールエラーなし
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS — canvas=5、コンソールエラーなし
 
 ---
 
@@ -31,7 +31,7 @@
 1. 「＋ 波 B を追加」→ 波 B を描く → Type 4、解答時刻 `t=3` → 「設問を生成」
 2. 合成波 Canvas が正常表示される
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS — canvas=6、合成波正常表示
 
 ---
 
@@ -43,7 +43,7 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 
 期待: 全テストが PASS（125 ケース以上）
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS — 125 ケース PASS（wave 34 + renderer 16 + random 18 + api 57）
 
 ---
 
@@ -67,7 +67,7 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 - 画面右下に「y 軸を自動調整しました：−3 〜 3」というトーストが表示される
 - トーストが約 3 秒後に消える
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS — yMax=3, yMin=-3、トースト表示・3秒後消滅を確認
 
 ---
 
@@ -88,10 +88,10 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 - yMin 入力欄が `-5`
 - トーストが「y 軸を自動調整しました：−5 〜 5」と表示される
 
+**結果**: ✅ PASS — yMax=5, yMin=-5、トースト「y 軸を自動調整しました：-5 〜 5」確認
+
 > **計算根拠**: 波 A（右向き）と波 B（左向き）はおよそ t=4〜6 の間で中央付近にて重なる。
 > その際の合成変位は最大 4 に達する（サンプリング確認値）。
-
-**結果**: ⬜ 未実施
 
 ---
 
@@ -112,7 +112,7 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 - yMin 入力欄が `-5`
 - トーストが表示される
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS — yMax=5, yMin=-5、トースト表示確認
 
 ---
 
@@ -129,7 +129,7 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 - エラーなく設問が生成される（gridConfig が[-2, 2] で動作する）
 - 生成された Canvas の y 軸ラベルが `2` / `-2` 止まりであること
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS — canvas=4 生成、gridConfig yMin=-2/yMax=2 で正常動作
 
 ---
 
@@ -145,7 +145,7 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 - yMin / yMax 入力欄が変化しない（デフォルト `-2` / `2` のまま）
 - トーストが表示されない
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS — yMin=-2/yMax=2 変化なし、トーストなし
 
 ---
 
@@ -163,7 +163,7 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 - yMax が再び `3` に戻る（タブ遷移ごとに再計算・上書き）
 - トーストが再表示される
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS — 往復後 yMax=3 に再設定、トースト再表示を確認
 
 ---
 
@@ -235,7 +235,7 @@ $resp.gridConfig
 - `gridConfig.yMin = -3`
 - 生成画像 `out_2-1.png` の y 軸ラベルが `3` / `-3`
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS — gridConfig.yMax=3, yMin=-3
 
 ---
 
@@ -264,7 +264,7 @@ $resp.gridConfig
 - `gridConfig.yMin = -5`
 - 生成画像 `out_2-2.png` の y 軸ラベルが `5` / `-5`
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS — gridConfig.yMax=5, yMin=-5
 
 ---
 
@@ -291,7 +291,7 @@ $resp.gridConfig
 - `gridConfig.yMax = 10`（自動調整は **実行されない**）
 - 生成画像 `out_2-3.png` の y 軸ラベルが `10`
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS — gridConfig.yMax=10（自動調整スキップ）
 
 ---
 
@@ -317,7 +317,7 @@ $resp.gridConfig
 - `gridConfig.yMax = 8`（自動調整は **スキップ**）
 - 生成画像 `out_2-4.png` の y 軸ラベルが `8`
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS — gridConfig.yMax=8（部分指定でも自動調整スキップ）
 
 ---
 
@@ -342,7 +342,7 @@ $resp.gridConfig
 - `gridConfig.yMin = -5`
 - 生成画像 `out_2-5.png` の y 軸ラベルが `5` / `-5`
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS — gridConfig.yMax=5, yMin=-5
 
 ---
 
@@ -366,7 +366,7 @@ $resp.gridConfig
 - レスポンス `success: true` または適切なエラー（頂点なし）
 - 自動調整は実行されない（成功した場合 `gridConfig.yMax = 2` のまま）
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS — gridConfig.yMax=2（デフォルト維持、自動調整なし）
 
 ---
 
@@ -377,21 +377,21 @@ $resp.gridConfig
 
 | # | 項目 | 期待値 | 結果 |
 |---|------|--------|------|
-| 0-1 | ブラウザ: Type 1 退行確認 | 正常生成 | ⬜ 未実施 |
-| 0-2 | ブラウザ: Type 4 退行確認 | 正常生成 | ⬜ 未実施 |
-| 0-3 | ユニットテスト全通過 | 125+ ケース PASS | ⬜ 未実施 |
-| 1-1 | ブラウザ: 波A のみ、自動拡張 | yMax=3、トースト表示 | ⬜ 未実施 |
-| 1-2 | ブラウザ: 波A+B 合成、自動拡張 | yMax=5、トースト表示 | ⬜ 未実施 |
-| 1-3 | ブラウザ: 反射波モード | yMax=5、トースト表示 | ⬜ 未実施 |
-| 1-4 | ブラウザ: 手動で軸を狭めて生成 | 正常生成（yMax=2） | ⬜ 未実施 |
-| 1-5 | ブラウザ: 波形なしで遷移 | 変化なし、通知なし | ⬜ 未実施 |
-| 1-6 | ブラウザ: タブ往復で再計算 | yMax=3 に再設定 | ⬜ 未実施 |
-| 2-1 | API: grid 未指定・単独波 | gridConfig.yMax=3 かつ画像ラベル ±3 | ⬜ 未実施 |
-| 2-2 | API: grid 未指定・合成波 | gridConfig.yMax=5 かつ画像ラベル ±5 | ⬜ 未実施 |
-| 2-3 | API: yMin/yMax 明示 | gridConfig.yMax=10 かつ画像ラベル ±10 | ⬜ 未実施 |
-| 2-4 | API: yMax のみ明示 | gridConfig.yMax=8 かつ画像ラベル 8 | ⬜ 未実施 |
-| 2-5 | API: Type6 反射波 | gridConfig.yMax=5 かつ画像ラベル ±5 | ⬜ 未実施 |
-| 2-6 | API: 波形なし | エラーまたは yMax=2 | ⬜ 未実施 |
+| 0-1 | ブラウザ: Type 1 退行確認 | 正常生成 | ✅ PASS |
+| 0-2 | ブラウザ: Type 4 退行確認 | 正常生成 | ✅ PASS |
+| 0-3 | ユニットテスト全通過 | 125+ ケース PASS | ✅ PASS (125) |
+| 1-1 | ブラウザ: 波A のみ、自動拡張 | yMax=3、トースト表示 | ✅ PASS |
+| 1-2 | ブラウザ: 波A+B 合成、自動拡張 | yMax=5、トースト表示 | ✅ PASS |
+| 1-3 | ブラウザ: 反射波モード | yMax=5、トースト表示 | ✅ PASS |
+| 1-4 | ブラウザ: 手動で軸を狭めて生成 | 正常生成（yMax=2） | ✅ PASS |
+| 1-5 | ブラウザ: 波形なしで遷移 | 変化なし、通知なし | ✅ PASS |
+| 1-6 | ブラウザ: タブ往復で再計算 | yMax=3 に再設定 | ✅ PASS |
+| 2-1 | API: grid 未指定・単独波 | gridConfig.yMax=3 かつ画像ラベル ±3 | ✅ PASS |
+| 2-2 | API: grid 未指定・合成波 | gridConfig.yMax=5 かつ画像ラベル ±5 | ✅ PASS |
+| 2-3 | API: yMin/yMax 明示 | gridConfig.yMax=10 かつ画像ラベル ±10 | ✅ PASS |
+| 2-4 | API: yMax のみ明示 | gridConfig.yMax=8 かつ画像ラベル 8 | ✅ PASS |
+| 2-5 | API: Type6 反射波 | gridConfig.yMax=5 かつ画像ラベル ±5 | ✅ PASS |
+| 2-6 | API: 波形なし | エラーまたは yMax=2 | ✅ PASS |
 
 ---
 
@@ -418,4 +418,4 @@ $resp.gridConfig
 
 | 実施日 | 実施者 | 結果 | 備考 |
 |--------|--------|------|------|
-| — | テスト専用エージェント | ⬜ 未実施 | — |
+| 2025-07-14 | テスト専用エージェント | ✅ 15/15 PASS（0-1〜1-6 ブラウザ + 2-1〜2-6 API）| ユニットテスト 125 PASS を含む全テスト通過 |
