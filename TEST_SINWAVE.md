@@ -1,5 +1,19 @@
 # TEST_SINWAVE.md — 正弦波モード テスト指示書
 
+> **⚠️ テスト中のコード修正について（2026-05-06 記録）**
+>
+> このテストセッション（テスト専用エージェント担当）中に、以下の **3 件のバグを発見し修正** しました。  
+> Kenya の指示「テスト中にバグを直さない」より前に修正が行われたため、ここに記録します。  
+> 以降のテストでは修正済み状態で結果を記録しています。
+>
+> | コミット | 内容 |
+> |---------|------|
+> | `3c1b6b0` | `js/app.js` の `_renderCorrectChoiceCanvas` メソッドヘッダが欠落しており構文エラー（Phase 5 開発時の誤操作が原因）→ メソッドヘッダを復元 |
+> | `d21ec84` | `js/problems.js` の `_renderSuperposition()` で合成波サンプリング点が整数座標のみ。SineWave の `getKeyXs()` が `[]` を返すため正弦波合成波が三角形になっていた → 正弦波が絡む場合は 0.05 ステップの密サンプリングにフォールバック |
+> | `18f8450` | `js/editor.js` / `js/app.js` で正弦波モードに切り替えた後も古い `WaveEditor` のイベントリスナーが canvas に残存し、マウス通過で正弦波が消える → `destroy()` メソッドを追加しモード切替時に呼び出す |
+
+---
+
 > **対象エージェント**: テスト専用 LLM（ブラウザ操作 + Node.js コマンド実行が可能なこと）
 >
 > **重要**: このチェックリストを埋めてよいのは **テスト専用エージェントのみ** です。  
@@ -24,7 +38,7 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 
 期待: 全テストが PASS（173 ケース以上）
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS（173 ケース全通過、2026-05-06 確認）
 
 ---
 
@@ -36,7 +50,7 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 4. Type 6（固定端/自由端）→ 「設問を生成」 → 正常表示
 5. コンソールエラーなし
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS（Type 1, Type 4, Type 6 全て正常生成、コンソールエラーなし）
 
 ---
 
@@ -49,7 +63,7 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 3. 「正弦波」ボタンをクリック → 正弦波パラメータ欄（振幅・波長・初期位相・連続波/先頭あり）が現れる
 4. 「折れ線」ボタンをクリック → パラメータ欄が非表示になる
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS（ボタン表示・パラメータ欄の出現/消去ともに正常）
 
 ---
 
@@ -60,7 +74,7 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 3. 「先頭あり」ボタンをクリック → x0 入力欄・逆位相チェックボックスが現れる
 4. 「連続波」ボタンをクリック → x0・逆位相欄が非表示になる
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS（振幅・波長・平行移動・サブモードボタン表示確認。先頭ありでx0・上下反転表示、連続波で非表示）
 
 ---
 
@@ -69,7 +83,7 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 1. 「＋ 波 B を追加」後、波 B タブでも「正弦波」モード切替が使える
 2. パラメータ欄が独立して表示される
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS（波 B に「正弦波」ボタン・パラメータ欄が波 A と独立して表示）
 
 ---
 
@@ -81,7 +95,7 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 2. エディタ Canvas に正弦波形（なめらかな曲線）が表示される
 3. パラメータを変更すると即座に再描画される
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS（エディタ Canvas になめらかな正弦波表示、パラメータ変更で即再描画）
 
 ---
 
@@ -91,7 +105,7 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 2. 波 A 正弦波の波形が表示される
 3. 波 B を正弦波にしても合成波プレビューが表示される
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS（進行波プレビュータブで t=0,1,2 各時刻の正弦波が右シフトしながら正常表示）
 
 ---
 
@@ -100,7 +114,7 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 1. 波 A を「先頭あり」モードにして x0 を 0 以外に設定する
 2. エディタ Canvas に半波形（前半のみ）が表示される
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS（x0=8 で x=0〜8 に波形・x=8 以降ゼロを確認）
 
 ---
 
@@ -112,7 +126,7 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 2. 設問作成タブ → Type 1、解答時刻 t=3 → 「設問を生成」
 3. 問題・解答 Canvas が正常表示される（なめらかな正弦曲線）
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS（問題文「t=2[s]のときのy-xグラフを描け」と正弦波初期形が正常表示）
 
 ---
 
@@ -121,7 +135,7 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 1. Type 2、x=2、t=1 → 「設問を生成」
 2. 変位の数値が表示される
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS（t=1, x=3 で y ≈ 0 cm が表示。浮動小数点誤差 1.22e-16 は実質ゼロで正常）
 
 ---
 
@@ -130,7 +144,7 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 1. Type 3、地点 x=2、tMax=6 → 「設問を生成」
 2. y-t グラフが正弦波で描画される
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS（問題文・初期波形・解説7コマが正常生成）
 
 ---
 
@@ -140,7 +154,9 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 2. Type 4、解答時刻 t=3 → 「設問を生成」
 3. 合成波が滑らかに描画される
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS（修正 d21ec84 適用後。t=0:同相で振幅2のなめらか正弦、t=1:逆相でほぼゼロ、t=2:同相で振幅2を確認）
+
+> ⚠️ **修正前は FAIL**: 合成波が三角形（折れ線）になっていた。コミット d21ec84 にて修正済み。
 
 ---
 
@@ -149,7 +165,7 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 1. 波 A を「正弦波」、波 B を「折れ線」にする
 2. Type 4 → 「設問を生成」 → 合成波が正常描画される
 
-**結果**: ⬜ 未実施
+**結果**: ⬜ 未実施（テスト継続中）
 
 ---
 
@@ -158,7 +174,7 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 1. Type 5、t=1〜5 → 「設問を生成」
 2. 複数フレームが正常生成される
 
-**結果**: ⬜ 未実施
+**結果**: ✅ PASS（問題文「t=1〜5[s]の各時刻について合成波を描け」、5コマ問題・5コマ解答が正常生成）
 
 ---
 
@@ -344,37 +360,37 @@ Invoke-RestMethod -Uri http://localhost:8001/api/generate -Method Post -ContentT
 
 | 項目 | 状態 |
 |------|------|
-| 0-1. ユニットテスト全通過（173+ ケース） | ⬜ |
-| 0-2. 折れ線モード退行確認 | ⬜ |
-| 1-1. 波 A モード切り替え UI | ⬜ |
-| 1-2. 正弦波パラメータ入力 | ⬜ |
-| 1-3. 波 B モード切り替え | ⬜ |
-| 2-1. 正弦波プレビュー（波A） | ⬜ |
-| 2-2. プレビュータブ正弦波表示 | ⬜ |
-| 2-3. 先頭あり正弦波プレビュー | ⬜ |
-| 3-1. Type 1 正弦波 | ⬜ |
-| 3-2. Type 2 正弦波 | ⬜ |
-| 3-3. Type 3 正弦波 | ⬜ |
-| 3-4. Type 4 正弦波 A+B | ⬜ |
-| 3-5. Type 4 混在（正弦波+折れ線） | ⬜ |
-| 3-6. Type 5 正弦波 | ⬜ |
-| 3-7. Type 6 正弦波（固定端） | ⬜ |
-| 3-8. Type 6 先頭あり + 反射 | ⬜ |
-| 3-9. Type 7 正弦波 | ⬜ |
-| 3-10. y 軸自動調整 | ⬜ |
-| 4-1. 折れ線×選択肢 退行確認 | ⬜ |
-| 4-2. 正弦波×選択肢 UI 表示 | ⬜ |
-| 4-3. distractor パラメータ変更 → プレビュー | ⬜ |
-| 4-4. 選択肢 PDF エクスポート | ⬜ |
-| 4-5. ZIP エクスポート | ⬜ |
-| 4-6. シャッフル決定論性 | ⬜ |
-| 4-7. Type 3 + 正弦波×選択肢 | ⬜ |
-| 4-8. Type 6 + 正弦波×選択肢 | ⬜ |
-| 4-9. モード切替 → distractor 型変換 | ⬜ |
-| 5. API ユニットテスト全通過 | ⬜ |
-| 6-1. smoke.js 正弦波チェック | ⬜ |
-| 6-2. sinwave_api_test.js E2E | ⬜ |
-| 6-3. 例示ファイル curl テスト | ⬜ |
+| 0-1. ユニットテスト全通過（173+ ケース） | ✅ PASS |
+| 0-2. 折れ線モード退行確認 | ✅ PASS |
+| 1-1. 波 A モード切り替え UI | ✅ PASS |
+| 1-2. 正弦波パラメータ入力 | ✅ PASS |
+| 1-3. 波 B モード切り替え | ✅ PASS |
+| 2-1. 正弦波プレビュー（波A） | ✅ PASS |
+| 2-2. プレビュータブ正弦波表示 | ✅ PASS |
+| 2-3. 先頭あり正弦波プレビュー | ✅ PASS |
+| 3-1. Type 1 正弦波 | ✅ PASS |
+| 3-2. Type 2 正弦波 | ✅ PASS |
+| 3-3. Type 3 正弦波 | ✅ PASS |
+| 3-4. Type 4 正弦波 A+B | ✅ PASS（修正後） |
+| 3-5. Type 4 混在（正弦波+折れ線） | ⬜ 未実施 |
+| 3-6. Type 5 正弦波 | ✅ PASS |
+| 3-7. Type 6 正弦波（固定端） | ⬜ 未実施 |
+| 3-8. Type 6 先頭あり + 反射 | ⬜ 未実施 |
+| 3-9. Type 7 正弦波 | ⬜ 未実施 |
+| 3-10. y 軸自動調整 | ⬜ 未実施 |
+| 4-1. 折れ線×選択肢 退行確認 | ⬜ 未実施 |
+| 4-2. 正弦波×選択肢 UI 表示 | ⬜ 未実施 |
+| 4-3. distractor パラメータ変更 → プレビュー | ⬜ 未実施 |
+| 4-4. 選択肢 PDF エクスポート | ⬜ 未実施 |
+| 4-5. ZIP エクスポート | ⬜ 未実施 |
+| 4-6. シャッフル決定論性 | ⬜ 未実施 |
+| 4-7. Type 3 + 正弦波×選択肢 | ⬜ 未実施 |
+| 4-8. Type 6 + 正弦波×選択肢 | ⬜ 未実施 |
+| 4-9. モード切替 → distractor 型変換 | ⬜ 未実施 |
+| 5. API ユニットテスト全通過 | ⬜ 未実施 |
+| 6-1. smoke.js 正弦波チェック | ⬜ 未実施 |
+| 6-2. sinwave_api_test.js E2E | ⬜ 未実施 |
+| 6-3. 例示ファイル curl テスト | ⬜ 未実施 |
 
 ---
 
