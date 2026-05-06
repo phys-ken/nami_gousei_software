@@ -35,10 +35,11 @@ node api_server.js
 ## ロジックのユニットテスト（Node.js）
 
 ```bash
-# 波形ロジック・レンダラ・乱数（68 ケース）
+# 波形ロジック・レンダラ・乱数（105 ケース）
 node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js
 
-# API バックエンド堅牢性・安全性テスト（57 ケース）
+# API バックエンド堅牢性・安全性テスト（68 ケース）
+# node_modules が ./node_modules にない場合は WAVE_API_NODE_MODULES を指定
 node --test tests/api.test.js
 
 # 全テスト一括
@@ -48,10 +49,10 @@ node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests
 node api/smoke.js
 ```
 
-- `wave.js`: 34 ケース（setVertex / getY / getYAtTime / getSnapshot / clear / toJSON / fromJSON）
+- `wave.js`: 71 ケース（Wave: setVertex / getY / getYAtTime / getSnapshot / clear / toJSON / reflect、SineWave: getYAtTime / getSnapshot / reflect / toJSON）
 - `renderer.js`: 16 ケース（`computeCanvasSize`）
 - `random.js`: 18 ケース（djb2 ハッシュ・mulberry32 PRNG・seededShuffle の決定論性）
-- `api.test.js`: 57 ケース（バリデーション・Type1〜7 生成・選択肢・シャッフル決定論性・inline モード・パストラバーサル防御・並行安全性・エッジケース）
+- `api.test.js`: 68 ケース（バリデーション・Type1〜7 生成・正弦波モード・選択肢・シャッフル決定論性・inline モード・パストラバーサル防御・並行安全性・エッジケース）
 - `problems.js`・`editor.js`・`exporter.js`・`app.js` はブラウザ Canvas/DOM に依存するためブラウザでのみ動作確認可能
 
 ## アーキテクチャ

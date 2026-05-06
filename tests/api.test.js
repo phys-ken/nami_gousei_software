@@ -5,7 +5,7 @@
 // ── NODE_PATH 注入（api_server.js と同じロジック） ─────────────────────
 const path = require('node:path');
 const RUNTIME_NODE_MODULES = process.env.WAVE_API_NODE_MODULES
-  || 'C:\\Users\\croma\\.node_caches\\wave-problem-api\\node_modules';
+  || path.join(__dirname, '..', 'node_modules');
 require('node:module').Module.globalPaths.push(RUNTIME_NODE_MODULES);
 process.env.NODE_PATH = process.env.NODE_PATH
   ? `${process.env.NODE_PATH}${path.delimiter}${RUNTIME_NODE_MODULES}`

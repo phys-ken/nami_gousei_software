@@ -37,5 +37,6 @@ tests/output/
 # Claude Code ローカル設定（権限設定はローカルのみ）
 .claude/settings.local.json
 
-# 開発用の旧ファイル（ローカルのみ保持）
+# 開発用の旧ファイル・サンプルコード（ローカルのみ保持）
 old_files/
+sample_codes/
