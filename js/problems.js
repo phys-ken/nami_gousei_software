@@ -599,23 +599,48 @@ class ProblemGenerator {
       if (pts.length >= 2) r.drawWave(pts, this._styleB);
     }
 
-    // 合成波（媒質内のみ）—— 全頂点位置を union して正確に描画
+    // 合成波（媒質内のみ）—— SineWave が絡む場合は密サンプリングにフォールバック
     if (showSum) {
-      const xSet = new Set();
-      for (let xi = Math.floor(medXMin); xi <= Math.ceil(medXMax); xi++) xSet.add(xi);
-      incidentWave.getKeyXs(t).forEach(sx => {
-        if (sx >= medXMin && sx <= medXMax) xSet.add(sx);
-      });
-      reflectedWave.getKeyXs(t).forEach(sx => {
-        if (sx >= medXMin && sx <= medXMax) xSet.add(sx);
-      });
-      const sumPts = [...xSet]
-        .sort((a, b) => a - b)
-        .filter(xi => xi >= medXMin && xi <= medXMax)
-        .map(xi => ({
-          x: xi,
-          y: incidentWave.getYAtTime(xi, t) + reflectedWave.getYAtTime(xi, t),
-        }));
+      // SineWave は getKeyXs が [] を返すため、その場合は密サンプリングにフォールバック
+      const incKeyXs = incidentWave.getKeyXs(t);
+      const refKeyXs = reflectedWave.getKeyXs(t);
+      const needsDense = (!incidentWave.isEmpty() && incKeyXs.length === 0) ||
+                         (!reflectedWave.isEmpty() && refKeyXs.length === 0);
+
+      let sumPts;
+      if (needsDense) {
+        const STEP = 0.05;
+        const count = Math.ceil((medXMax - medXMin) / STEP);
+        sumPts = [];
+        for (let i = 0; i <= count; i++) {
+          const xi = Math.round((medXMin + i * STEP) * 10000) / 10000;
+          if (xi > medXMax + 1e-9) break;
+          sumPts.push({
+            x: xi,
+            y: incidentWave.getYAtTime(xi, t) + reflectedWave.getYAtTime(xi, t),
+          });
+        }
+        const lastX = sumPts.length > 0 ? sumPts[sumPts.length - 1].x : medXMin;
+        if (Math.abs(lastX - medXMax) > 1e-9) {
+          sumPts.push({ x: medXMax, y: incidentWave.getYAtTime(medXMax, t) + reflectedWave.getYAtTime(medXMax, t) });
+        }
+      } else {
+        const xSet = new Set();
+        for (let xi = Math.floor(medXMin); xi <= Math.ceil(medXMax); xi++) xSet.add(xi);
+        incidentWave.getKeyXs(t).forEach(sx => {
+          if (sx >= medXMin && sx <= medXMax) xSet.add(sx);
+        });
+        reflectedWave.getKeyXs(t).forEach(sx => {
+          if (sx >= medXMin && sx <= medXMax) xSet.add(sx);
+        });
+        sumPts = [...xSet]
+          .sort((a, b) => a - b)
+          .filter(xi => xi >= medXMin && xi <= medXMax)
+          .map(xi => ({
+            x: xi,
+            y: incidentWave.getYAtTime(xi, t) + reflectedWave.getYAtTime(xi, t),
+          }));
+      }
       if (sumPts.length >= 2) r.drawWave(sumPts, this._styleSum);
     }
 
