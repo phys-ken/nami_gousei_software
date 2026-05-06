@@ -1027,7 +1027,7 @@ const App = {
     this._applyEditorCanvasSize(canvas);
     // 正弦波モードのときはエディタを生成せずプレビュー描画
     if (this.waveAMode === 'sine') {
-      this.editorA = null;
+      if (this.editorA) { this.editorA.destroy(); this.editorA = null; }
       this._renderSineWavePreview('A');
       return;
     }
@@ -1052,7 +1052,7 @@ const App = {
     this._applyEditorCanvasSize(canvas);
     // 正弦波モードのときはエディタを生成せずプレビュー描画
     if (this.waveBMode === 'sine') {
-      this.editorB = null;
+      if (this.editorB) { this.editorB.destroy(); this.editorB = null; }
       this._renderSineWavePreview('B');
       return;
     }
