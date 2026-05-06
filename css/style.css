@@ -924,3 +924,37 @@ select:focus { outline: none; border-color: #1e3a5f; }
   to   { opacity: 0; }
 }
 ::-webkit-scrollbar-thumb:hover { background: #8a9aaa; }
+
+/* ============================================================
+   正弦波パラメータ UI
+   ============================================================ */
+
+/* 正弦波パラメータブロック（モード切替で表示） */
+#waveASineParams,
+#waveBSineParams {
+  border-top: 1px dashed #c8cdd3;
+  margin-top: 6px;
+  padding-top: 6px;
+}
+
+/* チェックボックス行 */
+.sine-check-row label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.sine-check-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+/* 正弦波プレビュー領域（Phase 3 で使用） */
+.sine-preview-hint {
+  font-size: 12px;
+  color: #888;
+  padding: 8px 0 4px 0;
+  text-align: center;
+}

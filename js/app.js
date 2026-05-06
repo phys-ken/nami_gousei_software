@@ -15,6 +15,12 @@ const App = {
   styleMode: 'gray',         // 'gray' | 'bw' | 'custom'
   currentProblem: null,
 
+  // 正弦波モード状態
+  waveAMode: 'vertex',   // 'vertex' | 'sine'
+  waveBMode: 'vertex',
+  waveASine: null,       // SineWave インスタンス（sine モード時）
+  waveBSine: null,
+
   // 選択肢モード設定（Type3 / Type4 / Type6 対象）
   // distractors[] には Wave インスタンスが入る（count - 1 個、正答は別途自動生成）
   // source は将来 'auto'（自動生成）を追加できるように布石
@@ -34,6 +40,182 @@ const App = {
   },
 
   // ------------------------------------------------------------------
+  // 正弦波モード — アクセサ
+  // ------------------------------------------------------------------
+
+  /** 波 A の実体（モードに応じて Wave または SineWave を返す） */
+  _activeWaveA() {
+    return this.waveAMode === 'sine' ? this.waveASine : this.waveA;
+  },
+
+  /** 波 B の実体（モードに応じて Wave または SineWave を返す） */
+  _activeWaveB() {
+    return this.waveBMode === 'sine' ? this.waveBSine : this.waveB;
+  },
+
+  // ------------------------------------------------------------------
+  // 正弦波モード — 状態管理・UI
+  // ------------------------------------------------------------------
+
+  /** デフォルト SineConfig を生成する */
+  _defaultSineConfig() {
+    return {
+      amplitude:   1,
+      wavelength:  4,
+      phaseShift:  0,
+      waveType:   'continuous',
+      invertPhase: false,
+      x0:          0,
+    };
+  },
+
+  /** localStorage から正弦波設定を復元 */
+  _loadSineConfigs() {
+    ['A', 'B'].forEach(name => {
+      try {
+        const modeKey  = `waveapp_wave${name}Mode`;
+        const cfgKey   = `waveapp_wave${name}SineConfig`;
+        const mode     = localStorage.getItem(modeKey);
+        const cfgJson  = localStorage.getItem(cfgKey);
+        if (mode === 'sine') {
+          const cfg = cfgJson ? JSON.parse(cfgJson) : this._defaultSineConfig();
+          const wave = this[`wave${name}`];
+          this[`wave${name}Sine`] = new SineWave({
+            sineConfig: cfg,
+            speed:      wave.speed,
+            direction:  wave.direction,
+            label:      name,
+          });
+          this[`wave${name}Mode`] = 'sine';
+        }
+      } catch (_) { /* 復元失敗はデフォルトのまま */ }
+    });
+  },
+
+  /** 正弦波設定を localStorage に保存 */
+  _saveSineConfig(name) {
+    try {
+      localStorage.setItem(`waveapp_wave${name}Mode`, this[`wave${name}Mode`]);
+      const sw = this[`wave${name}Sine`];
+      if (sw) {
+        localStorage.setItem(`waveapp_wave${name}SineConfig`, JSON.stringify(sw.sineConfig));
+      }
+    } catch (_) {}
+  },
+
+  /**
+   * モード切り替えボタンのハンドラ
+   * 'vertex' ↔ 'sine' を切り替え、UI を更新する
+   */
+  setWaveMode(name, mode) {
+    if (this[`wave${name}Mode`] === mode) return; // 変更なし
+    this[`wave${name}Mode`] = mode;
+
+    if (mode === 'sine' && !this[`wave${name}Sine`]) {
+      // SineWave がなければデフォルト設定で生成
+      const wave = this[`wave${name}`];
+      this[`wave${name}Sine`] = new SineWave({
+        sineConfig: this._defaultSineConfig(),
+        speed:      wave.speed,
+        direction:  wave.direction,
+        label:      name,
+      });
+    }
+
+    this._saveSineConfig(name);
+    this._updateWaveModeUI(name);
+    this._renderSineWavePreview(name);   // Phase 3 で実装; Phase 2 では no-op
+  },
+
+  /** 正弦波パラメータ入力欄の onchange ハンドラ */
+  onSineParamChange(name) {
+    const sw = this[`wave${name}Sine`];
+    if (!sw) return;
+
+    const prefix = `wave${name}Sine`;
+    const amp  = parseInt(document.getElementById(`${prefix}Amplitude`)?.value, 10);
+    const wl   = parseInt(document.getElementById(`${prefix}Wavelength`)?.value, 10);
+    const ps   = parseInt(document.getElementById(`${prefix}PhaseShift`)?.value, 10);
+    const x0   = parseInt(document.getElementById(`${prefix}X0`)?.value, 10);
+    const inv  = document.getElementById(`${prefix}InvertPhase`)?.checked ?? false;
+
+    if (!isNaN(amp) && amp >= 1) sw.sineConfig.amplitude   = amp;
+    if (!isNaN(wl)  && wl >= 2)  sw.sineConfig.wavelength  = wl;
+    if (!isNaN(ps))               sw.sineConfig.phaseShift  = ps;
+    if (!isNaN(x0))               sw.sineConfig.x0          = x0;
+    sw.sineConfig.invertPhase = inv;
+
+    this._saveSineConfig(name);
+    this._renderSineWavePreview(name);  // Phase 3 で実装
+  },
+
+  /** 連続波 ↔ 先頭あり進行波 サブモード切り替え */
+  onSineSubMode(name, waveType) {
+    const sw = this[`wave${name}Sine`];
+    if (!sw) return;
+    sw.sineConfig.waveType = waveType;
+
+    // ボタン active 切り替え
+    const prefix = `wave${name}Sine`;
+    document.getElementById(`${prefix}ModeContinuous`)?.classList.toggle('active', waveType === 'continuous');
+    document.getElementById(`${prefix}ModeProgressive`)?.classList.toggle('active', waveType === 'progressive');
+    // 先頭ありパラメータの表示切り替え
+    const progEl = document.getElementById(`wave${name}SineProgressiveParams`);
+    if (progEl) progEl.style.display = waveType === 'progressive' ? 'block' : 'none';
+
+    this._saveSineConfig(name);
+    this._renderSineWavePreview(name);
+  },
+
+  /**
+   * モード切り替えに応じて UI を更新する
+   * - モードボタンの active 状態
+   * - 正弦波パラメータ欄の表示 / 非表示
+   * - 入力欄の値を SineWave インスタンスから同期
+   */
+  _updateWaveModeUI(name) {
+    const mode   = this[`wave${name}Mode`];
+    const prefix = `wave${name}Sine`;
+
+    // トグルボタン
+    document.getElementById(`wave${name}ModeVertex`)?.classList.toggle('active', mode === 'vertex');
+    document.getElementById(`wave${name}ModeSine`)?.classList.toggle('active', mode === 'sine');
+
+    // 正弦波パラメータ欄
+    const sineParams = document.getElementById(`wave${name}SineParams`);
+    if (sineParams) sineParams.style.display = mode === 'sine' ? 'block' : 'none';
+
+    if (mode === 'sine') {
+      const sw  = this[`wave${name}Sine`];
+      const cfg = sw?.sineConfig;
+      if (cfg) {
+        const ampEl = document.getElementById(`${prefix}Amplitude`);
+        const wlEl  = document.getElementById(`${prefix}Wavelength`);
+        const psEl  = document.getElementById(`${prefix}PhaseShift`);
+        const x0El  = document.getElementById(`${prefix}X0`);
+        const invEl = document.getElementById(`${prefix}InvertPhase`);
+        if (ampEl) ampEl.value = cfg.amplitude;
+        if (wlEl)  wlEl.value  = cfg.wavelength;
+        if (psEl)  psEl.value  = cfg.phaseShift;
+        if (x0El)  x0El.value  = cfg.x0 ?? 0;
+        if (invEl) invEl.checked = cfg.invertPhase ?? false;
+
+        // サブモードボタン
+        const isCont = cfg.waveType === 'continuous';
+        document.getElementById(`${prefix}ModeContinuous`)?.classList.toggle('active', isCont);
+        document.getElementById(`${prefix}ModeProgressive`)?.classList.toggle('active', !isCont);
+
+        // 先頭ありパラメータ表示
+        const progEl = document.getElementById(`wave${name}SineProgressiveParams`);
+        if (progEl) progEl.style.display = isCont ? 'none' : 'block';
+      }
+    }
+  },
+
+  // Phase 3 で実装: 正弦波モードの Canvas プレビュー描画（Phase 2 では no-op）
+  _renderSineWavePreview(_name) {},
+
+  // ------------------------------------------------------------------
   // 初期化
   // ------------------------------------------------------------------
   init() {
@@ -48,9 +230,12 @@ const App = {
     this._loadCellSize();
     this._loadChoicesConfig();
     this._loadReflectionConfig();
+    this._loadSineConfigs();
     this._syncPresetButtons();
     this._syncGridInputs();
     this._syncCellSizeInputs();
+    this._updateWaveModeUI('A');
+    this._updateWaveModeUI('B');
     this._setupEditorA();
     this._bindSpeedInputs();
     this._bindChoicesParamRefresh();
@@ -759,6 +944,9 @@ const App = {
   setDirection(waveName, dir) {
     const wave = waveName === 'A' ? this.waveA : this.waveB;
     wave.direction = dir;
+    // SineWave にも反映
+    const sw = this[`wave${waveName}Sine`];
+    if (sw) sw.direction = dir;
 
     const prefix = waveName === 'A' ? 'waveA' : 'waveB';
     document.getElementById(`${prefix}DirRight`).classList.toggle('active', dir === 1);
@@ -766,6 +954,7 @@ const App = {
     // 反射モード中は入射波の向きが変わるためエディタのグレー領域も更新
     if (waveName === 'A' && this.reflectionConfig.enabled) this._setupEditorA();
     this._refreshActiveChoicesPanel();
+    this._renderSineWavePreview(waveName);
   },
 
   // ------------------------------------------------------------------
@@ -787,12 +976,18 @@ const App = {
   // ------------------------------------------------------------------
   _bindSpeedInputs() {
     document.getElementById('waveASpeed').addEventListener('change', e => {
-      const v = parseFloat(e.target.value); this.waveA.speed = isNaN(v) ? 1 : v;
+      const v = parseFloat(e.target.value);
+      this.waveA.speed = isNaN(v) ? 1 : v;
+      if (this.waveASine) this.waveASine.speed = this.waveA.speed;
       this._refreshActiveChoicesPanel();
+      this._renderSineWavePreview('A');
     });
     document.getElementById('waveBSpeed').addEventListener('change', e => {
-      const v = parseFloat(e.target.value); this.waveB.speed = isNaN(v) ? 1 : v;
+      const v = parseFloat(e.target.value);
+      this.waveB.speed = isNaN(v) ? 1 : v;
+      if (this.waveBSine) this.waveBSine.speed = this.waveB.speed;
       this._refreshActiveChoicesPanel();
+      this._renderSineWavePreview('B');
     });
   },
 

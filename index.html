@@ -77,6 +77,14 @@
     <!-- 波 A 設定 -->
     <div class="settings-group">
       <h3>波 A</h3>
+      <!-- 入力方式トグル -->
+      <div class="setting-row">
+        <label>入力方式</label>
+        <div class="dir-group">
+          <button id="waveAModeVertex" class="dir-btn active" onclick="App.setWaveMode('A','vertex')">折れ線</button>
+          <button id="waveAModeSine"   class="dir-btn"        onclick="App.setWaveMode('A','sine')">正弦波</button>
+        </div>
+      </div>
       <div class="setting-row">
         <label>速さ</label>
         <input type="number" id="waveASpeed" value="1" min="0.5" step="0.5">
@@ -89,6 +97,46 @@
           <button id="waveADirLeft"  class="dir-btn"        onclick="App.setDirection('A', -1)">←</button>
         </div>
       </div>
+      <!-- 正弦波パラメータ（正弦波モード時のみ表示） -->
+      <div id="waveASineParams" style="display:none">
+        <div class="setting-row">
+          <label>振幅</label>
+          <input type="number" id="waveASineAmplitude" value="1" min="1" step="1"
+                 onchange="App.onSineParamChange('A')">
+        </div>
+        <div class="setting-row">
+          <label>波長</label>
+          <input type="number" id="waveASineWavelength" value="4" min="2" step="1"
+                 onchange="App.onSineParamChange('A')">
+        </div>
+        <div class="setting-row">
+          <label>平行移動（右が正）</label>
+          <input type="number" id="waveASinePhaseShift" value="0" step="1"
+                 onchange="App.onSineParamChange('A')">
+        </div>
+        <div class="setting-row">
+          <label>サブモード</label>
+          <div class="dir-group">
+            <button id="waveASineModeContinuous"   class="dir-btn active" onclick="App.onSineSubMode('A','continuous')">連続波</button>
+            <button id="waveASineModeProgressive"  class="dir-btn"        onclick="App.onSineSubMode('A','progressive')">先頭あり</button>
+          </div>
+        </div>
+        <!-- 先頭あり進行波のみ表示 -->
+        <div id="waveASineProgressiveParams" style="display:none">
+          <div class="setting-row">
+            <label>始点 x0（整数）</label>
+            <input type="number" id="waveASineX0" value="0" step="1"
+                   onchange="App.onSineParamChange('A')">
+          </div>
+          <div class="setting-row sine-check-row">
+            <label>
+              <input type="checkbox" id="waveASineInvertPhase"
+                     onchange="App.onSineParamChange('A')">
+              上下反転
+            </label>
+          </div>
+        </div>
+      </div>
       <div class="btn-row">
         <button class="btn-danger" onclick="App.clearWave('A')">クリア</button>
       </div>
@@ -97,6 +145,14 @@
     <!-- 波 B 設定（追加後に表示） -->
     <div class="settings-group" id="waveBSection" style="display:none">
       <h3>波 B</h3>
+      <!-- 入力方式トグル -->
+      <div class="setting-row">
+        <label>入力方式</label>
+        <div class="dir-group">
+          <button id="waveBModeVertex" class="dir-btn active" onclick="App.setWaveMode('B','vertex')">折れ線</button>
+          <button id="waveBModeSine"   class="dir-btn"        onclick="App.setWaveMode('B','sine')">正弦波</button>
+        </div>
+      </div>
       <div class="setting-row">
         <label>速さ</label>
         <input type="number" id="waveBSpeed" value="1" min="0.5" step="0.5">
@@ -107,6 +163,46 @@
         <div class="dir-group">
           <button id="waveBDirRight" class="dir-btn"        onclick="App.setDirection('B', 1)">→</button>
           <button id="waveBDirLeft"  class="dir-btn active" onclick="App.setDirection('B', -1)">←</button>
+        </div>
+      </div>
+      <!-- 正弦波パラメータ（正弦波モード時のみ表示） -->
+      <div id="waveBSineParams" style="display:none">
+        <div class="setting-row">
+          <label>振幅</label>
+          <input type="number" id="waveBSineAmplitude" value="1" min="1" step="1"
+                 onchange="App.onSineParamChange('B')">
+        </div>
+        <div class="setting-row">
+          <label>波長</label>
+          <input type="number" id="waveBSineWavelength" value="4" min="2" step="1"
+                 onchange="App.onSineParamChange('B')">
+        </div>
+        <div class="setting-row">
+          <label>平行移動（右が正）</label>
+          <input type="number" id="waveBSinePhaseShift" value="0" step="1"
+                 onchange="App.onSineParamChange('B')">
+        </div>
+        <div class="setting-row">
+          <label>サブモード</label>
+          <div class="dir-group">
+            <button id="waveBSineModeContinuous"   class="dir-btn active" onclick="App.onSineSubMode('B','continuous')">連続波</button>
+            <button id="waveBSineModeProgressive"  class="dir-btn"        onclick="App.onSineSubMode('B','progressive')">先頭あり</button>
+          </div>
+        </div>
+        <!-- 先頭あり進行波のみ表示 -->
+        <div id="waveBSineProgressiveParams" style="display:none">
+          <div class="setting-row">
+            <label>始点 x0（整数）</label>
+            <input type="number" id="waveBSineX0" value="0" step="1"
+                   onchange="App.onSineParamChange('B')">
+          </div>
+          <div class="setting-row sine-check-row">
+            <label>
+              <input type="checkbox" id="waveBSineInvertPhase"
+                     onchange="App.onSineParamChange('B')">
+              上下反転
+            </label>
+          </div>
         </div>
       </div>
       <div class="btn-row">
