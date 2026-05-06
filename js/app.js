@@ -212,8 +212,34 @@ const App = {
     }
   },
 
-  // Phase 3 で実装: 正弦波モードの Canvas プレビュー描画（Phase 2 では no-op）
-  _renderSineWavePreview(_name) {},
+  // Phase 3: 正弦波モードの Canvas プレビュー描画
+  _renderSineWavePreview(name) {
+    const mode = this[`wave${name}Mode`];
+    if (mode !== 'sine') return;
+    const sw = this[`wave${name}Sine`];
+    if (!sw) return;
+
+    const canvasId = name === 'A' ? 'editorCanvasA' : 'editorCanvasB';
+    const canvas   = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    const { xMin, xMax } = this.gridConfig;
+    const extra = (name === 'A' && this.reflectionConfig.enabled) ? {
+      boundary:          this.reflectionConfig.boundary,
+      boundaryDirection: sw.direction,
+    } : {};
+    const renderer = new WaveRenderer(canvas, Object.assign({}, this.gridConfig, {
+      gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
+    }, extra));
+    renderer.clear();
+    renderer.drawGrid();
+    renderer.drawAxes();
+
+    const pts = sw.getSnapshot(xMin, xMax, 0);
+    const styleKey = name === 'A' ? 'waveSingle' : 'waveSingle';
+    const style    = this.styleConfig ? this.styleConfig[styleKey] : {};
+    renderer.drawWave(pts, style);
+  },
 
   // ------------------------------------------------------------------
   // 初期化
@@ -781,6 +807,12 @@ const App = {
   _setupEditorA() {
     const canvas = document.getElementById('editorCanvasA');
     this._applyEditorCanvasSize(canvas);
+    // 正弦波モードのときはエディタを生成せずプレビュー描画
+    if (this.waveAMode === 'sine') {
+      this.editorA = null;
+      this._renderSineWavePreview('A');
+      return;
+    }
     const extra = this.reflectionConfig.enabled ? {
       boundary:          this.reflectionConfig.boundary,
       boundaryDirection: this.waveA.direction,
@@ -800,6 +832,12 @@ const App = {
   _setupEditorB() {
     const canvas = document.getElementById('editorCanvasB');
     this._applyEditorCanvasSize(canvas);
+    // 正弦波モードのときはエディタを生成せずプレビュー描画
+    if (this.waveBMode === 'sine') {
+      this.editorB = null;
+      this._renderSineWavePreview('B');
+      return;
+    }
     const renderer = new WaveRenderer(canvas, Object.assign({}, this.gridConfig, {
       gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
     }));
@@ -1091,7 +1129,7 @@ const App = {
       });
       for (let t = 0; t <= tMax; t++) {
         const canvas = gen._renderReflectionCanvas(
-          this.waveA, this.reflectionConfig.boundary, this.reflectionConfig.endType, t
+          this._activeWaveA(), this.reflectionConfig.boundary, this.reflectionConfig.endType, t
         );
         const dlBtn = document.createElement('button');
         dlBtn.textContent = `t=${t}s PNG`;
@@ -1106,7 +1144,7 @@ const App = {
       return;
     }
 
-    const waves  = this.hasWaveB ? [this.waveA, this.waveB] : [this.waveA];
+    const waves  = this.hasWaveB ? [this._activeWaveA(), this._activeWaveB()] : [this._activeWaveA()];
     const sc = this.styleConfig;
     const styles = this.hasWaveB
       ? [sc.waveA, sc.waveB]
