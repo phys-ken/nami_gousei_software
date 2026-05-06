@@ -90,19 +90,73 @@ apiApp.get('/api/output/:session/:file', (req, res) => {
 apiApp.use((_req, res) => res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } }));
 
 // ----- Boot both -----
-const staticServer = staticApp.listen(STATIC_PORT, () => {
-  console.log(`[static] http://localhost:${STATIC_PORT}/`);
+let staticServer, apiServer;
+
+function killPortAndRetry(port, retryFn) {
+  // Windows: use netstat + taskkill to free the port, then retry
+  const { execSync } = require('node:child_process');
+  try {
+    const out = execSync(
+      `netstat -ano | findstr :${port}`,
+      { encoding: 'utf8', stdio: ['pipe','pipe','pipe'] }
+    );
+    const pids = [...new Set(
+      out.split('\n')
+        .map(line => line.trim().split(/\s+/).pop())
+        .filter(pid => /^\d+$/.test(pid) && pid !== '0')
+    )];
+    for (const pid of pids) {
+      try { execSync(`taskkill /PID ${pid} /F`, { stdio: 'pipe' }); } catch (_) {}
+    }
+    console.log(`[server] freed port ${port} (PIDs: ${pids.join(',')}), retrying...`);
+  } catch (_) {}
+  setTimeout(retryFn, 500);
+}
+
+function startStatic() {
+  staticServer = staticApp.listen(STATIC_PORT, () => {
+    console.log(`[static] http://localhost:${STATIC_PORT}/`);
+  });
+  staticServer.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.warn(`[static] port ${STATIC_PORT} in use, freeing...`);
+      killPortAndRetry(STATIC_PORT, startStatic);
+    } else {
+      console.error('[static] server error:', err);
+    }
+  });
+}
+
+function startApi() {
+  apiServer = apiApp.listen(API_PORT, () => {
+    console.log(`[api]    http://localhost:${API_PORT}/api/health`);
+    console.log(`[api]    POST  http://localhost:${API_PORT}/api/generate`);
+    console.log(`[api]    GET   http://localhost:${API_PORT}/api/schema`);
+  });
+  apiServer.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.warn(`[api] port ${API_PORT} in use, freeing...`);
+      killPortAndRetry(API_PORT, startApi);
+    } else {
+      console.error('[api] server error:', err);
+    }
+  });
+}
+
+startStatic();
+startApi();
+
+process.on('uncaughtException', (err) => {
+  console.error('[server] uncaughtException:', err);
 });
-const apiServer = apiApp.listen(API_PORT, () => {
-  console.log(`[api]    http://localhost:${API_PORT}/api/health`);
-  console.log(`[api]    POST  http://localhost:${API_PORT}/api/generate`);
-  console.log(`[api]    GET   http://localhost:${API_PORT}/api/schema`);
+process.on('unhandledRejection', (reason) => {
+  console.error('[server] unhandledRejection:', reason);
 });
 
 const shutdown = (sig) => {
   console.log(`\n[server] received ${sig}, shutting down...`);
-  staticServer.close();
-  apiServer.close();
+  if (staticServer) staticServer.close();
+  if (apiServer) apiServer.close();
   setTimeout(() => process.exit(0), 500);
 };
 process.on('SIGINT',  () => shutdown('SIGINT'));
