@@ -28,6 +28,7 @@ function buildState(spec, sandbox) {
 
 function buildWave(json, sandbox) {
   if (!json) return null;
+  if (json.sineMode) return new sandbox.SineWave().fromJSON(json);
   return new sandbox.Wave().fromJSON(json);
 }
 

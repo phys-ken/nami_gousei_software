@@ -9,7 +9,17 @@
     "GET /api/output/:session/:file": "Serve a generated PNG by session+filename"
   },
   "wave": {
-    "vertices": "Array of {x:int, y:multiple-of-0.5}. Sorted by x.",
+    "vertices": "Array of {x:int, y:multiple-of-0.5}. Sorted by x. Required when sineMode is false (default).",
+    "sineMode": "Boolean (default false). When true, use sineConfig instead of vertices to define the wave.",
+    "sineConfig": {
+      "description": "Sine wave parameters. Required when sineMode=true.",
+      "amplitude": "Positive integer (>= 1). Wave amplitude in grid units.",
+      "wavelength": "Positive integer (>= 2). Wavelength in grid units.",
+      "phaseShift": "Integer phase offset (default 0). Shifts the wave horizontally.",
+      "waveType": "'continuous' (default) | 'progressive' — progressive requires x0.",
+      "invertPhase": "Boolean (default false). If true, flips the phase sign (x→ into reflected part).",
+      "x0": "Integer. Required when waveType='progressive'. Front position of the progressive wave."
+    },
     "speed": "Number, propagation speed (cells/sec). Distractor waves typically use 0 (static).",
     "direction": "1 = right-going, -1 = left-going",
     "label": "Optional label string ('A', 'B', etc.)"
@@ -41,14 +51,14 @@
       "params": ["x", "tMax"],
       "waveB": false,
       "supportsChoices": true,
-      "distractor-shape": "Wave with vertices in (t,y) space; rendered statically (no propagation)."
+      "distractor-shape": "Wave with vertices in (t,y) space; rendered statically (no propagation). Or set sineMode=true for a sine distractor (wavelength acts as period)."
     },
     "4": {
       "name": "Superposition at specified time",
       "params": ["answerT"],
       "waveB": true,
       "supportsChoices": true,
-      "distractor-shape": "Wave with vertices in (x,y) space; rendered statically as a candidate sum-wave."
+      "distractor-shape": "Wave with vertices in (x,y) space; rendered statically as a candidate sum-wave. Or set sineMode=true for a sine distractor."
     },
     "5": {
       "name": "Superposition over time range",
@@ -62,7 +72,7 @@
       "endType": "'fixed' | 'free'",
       "waveB": false,
       "supportsChoices": true,
-      "distractor-shape": "Wave with vertices in (x,y) space; rendered statically as a candidate combined wave inside the boundary."
+      "distractor-shape": "Wave with vertices in (x,y) space; rendered statically as a candidate combined wave inside the boundary. Or set sineMode=true for a sine distractor."
     },
     "7": {
       "name": "Reflection over time range",

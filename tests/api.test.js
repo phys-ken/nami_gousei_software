@@ -508,3 +508,119 @@ describe('エッジケース', () => {
     assert.notEqual(r1.sessionId, r2.sessionId);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════
+// 正弦波モード（Phase 6）
+// ═══════════════════════════════════════════════════════════════════════
+
+const WAVE_A_SINE = {
+  sineMode: true,
+  sineConfig: { amplitude: 1, wavelength: 4, phaseShift: 0, waveType: 'continuous' },
+  speed: 1,
+  direction: 1,
+};
+const WAVE_A_SINE_PROG = {
+  sineMode: true,
+  sineConfig: { amplitude: 1, wavelength: 4, phaseShift: 0, waveType: 'progressive', x0: 0 },
+  speed: 1,
+  direction: 1,
+};
+const WAVE_B_SINE = {
+  sineMode: true,
+  sineConfig: { amplitude: 1, wavelength: 4, phaseShift: 2, waveType: 'continuous' },
+  speed: 1,
+  direction: -1,
+};
+
+describe('正弦波モード — バリデーション', () => {
+  it('sineMode=true なのに sineConfig なし → バリデーションエラー', () => {
+    const r = validateRequest({ type: 1, waveA: { sineMode: true, speed: 1, direction: 1 }, params: { answerT: 3 } });
+    assert.ok(!r.success);
+    assert.ok(r.error.issues.some(i => i.message.includes('sineConfig')));
+  });
+
+  it('sineConfig.waveType="progressive" で x0 なし → バリデーションエラー', () => {
+    const r = validateRequest({
+      type: 1,
+      waveA: { sineMode: true, sineConfig: { amplitude: 1, wavelength: 4, waveType: 'progressive' }, speed: 1, direction: 1 },
+      params: { answerT: 3 },
+    });
+    assert.ok(!r.success);
+    assert.ok(r.error.issues.some(i => i.message.includes('x0')));
+  });
+
+  it('amplitude=0 → バリデーションエラー', () => {
+    const r = validateRequest({
+      type: 1,
+      waveA: { sineMode: true, sineConfig: { amplitude: 0, wavelength: 4 }, speed: 1, direction: 1 },
+      params: { answerT: 3 },
+    });
+    assert.ok(!r.success);
+  });
+
+  it('wavelength=1 → バリデーションエラー（min=2）', () => {
+    const r = validateRequest({
+      type: 1,
+      waveA: { sineMode: true, sineConfig: { amplitude: 1, wavelength: 1 }, speed: 1, direction: 1 },
+      params: { answerT: 3 },
+    });
+    assert.ok(!r.success);
+  });
+});
+
+describe('正弦波モード — Bridge.generate', () => {
+  it('Type 1 + 連続正弦波 → success:true, 画像生成', () => {
+    const r = gen({ type: 1, waveA: WAVE_A_SINE, params: { answerT: 3 } }, 'sine_type1_cont');
+    assert.ok(r.success, r.error);
+    assert.ok(Array.isArray(r.files.question) && r.files.question.length > 0);
+  });
+
+  it('Type 1 + 先頭あり正弦波 → success:true', () => {
+    const r = gen({ type: 1, waveA: WAVE_A_SINE_PROG, params: { answerT: 3 } }, 'sine_type1_prog');
+    assert.ok(r.success, r.error);
+  });
+
+  it('Type 4 + waveA/B 両方正弦波 → success:true, 合成波生成', () => {
+    const r = gen({ type: 4, waveA: WAVE_A_SINE, waveB: WAVE_B_SINE, params: { answerT: 3 } }, 'sine_type4_both');
+    assert.ok(r.success, r.error);
+  });
+
+  it('Type 4 + waveA 正弦波、waveB 折れ線（混在） → success:true', () => {
+    const r = gen({ type: 4, waveA: WAVE_A_SINE, waveB: WAVE_B_TRIANGLE, params: { answerT: 3 } }, 'sine_type4_mixed');
+    assert.ok(r.success, r.error);
+  });
+
+  it('Type 6 + waveA 正弦波 + 反射 → success:true', () => {
+    const r = gen({
+      type: 6, waveA: WAVE_A_SINE,
+      params: { answerT: 3, boundary: 8, endType: 'fixed' },
+    }, 'sine_type6');
+    assert.ok(r.success, r.error);
+  });
+
+  it('gridConfig.yMax 自動調整: 振幅3の正弦波 → yMax >= 4', () => {
+    const sineAmp3 = {
+      sineMode: true,
+      sineConfig: { amplitude: 3, wavelength: 4, phaseShift: 0, waveType: 'continuous' },
+      speed: 1, direction: 1,
+    };
+    const r = gen({ type: 1, waveA: sineAmp3, params: { answerT: 3 } }, 'sine_yrange');
+    assert.ok(r.success, r.error);
+    assert.ok(r.gridConfig.yMax >= 4, `yMax=${r.gridConfig.yMax} should be >= 4`);
+  });
+
+  it('Type 4 選択肢 + sineMode distractor → success:true', () => {
+    const sineDist = {
+      sineMode: true,
+      sineConfig: { amplitude: 1, wavelength: 6, phaseShift: 1, waveType: 'continuous' },
+      speed: 0, direction: 1,
+    };
+    const r = gen({
+      type: 4, waveA: WAVE_A_SINE, waveB: WAVE_B_SINE,
+      params: { answerT: 3 },
+      choices: { enabled: true, count: 4, distractors: [sineDist, sineDist, sineDist] },
+    }, 'sine_type4_choices');
+    assert.ok(r.success, r.error);
+    assert.ok(r.files.choices && r.files.choices.length === 4);
+  });
+});

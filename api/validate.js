@@ -9,12 +9,29 @@ const Vertex = z.object({
   }),
 });
 
+const SineConfig = z.object({
+  amplitude:   z.number().int().min(1),
+  wavelength:  z.number().int().min(2),
+  phaseShift:  z.number().int().default(0),
+  waveType:    z.enum(['continuous', 'progressive']).default('continuous'),
+  invertPhase: z.boolean().default(false),
+  x0:          z.number().int().optional(),
+}).refine(
+  (s) => s.waveType !== 'progressive' || s.x0 !== undefined,
+  { message: 'x0 is required when waveType is progressive' }
+);
+
 const WaveSpec = z.object({
-  vertices: z.array(Vertex),
-  speed: z.number().nonnegative().default(1),
-  direction: z.union([z.literal(1), z.literal(-1)]).default(1),
-  label: z.string().optional(),
-});
+  vertices:   z.array(Vertex).optional(),
+  sineMode:   z.boolean().default(false),
+  sineConfig: SineConfig.optional(),
+  speed:      z.number().nonnegative().default(1),
+  direction:  z.union([z.literal(1), z.literal(-1)]).default(1),
+  label:      z.string().optional(),
+}).refine(
+  (w) => (w.sineMode && w.sineConfig) || (!w.sineMode && w.vertices),
+  { message: 'must provide either vertices (vertex mode) or sineConfig (sine mode)' }
+);
 
 const GridSpec = z.object({
   xMin: z.number().optional(),
