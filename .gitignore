@@ -20,9 +20,12 @@ env/
 .env.local
 .env.*.local
 
-# Node.js（将来のフロントエンドビルド用）
+# Node.js（API バックエンド用。実体は C:\Users\croma\.node_caches\wave-problem-api\ にある）
 node_modules/
 *.log
+
+# API サーバーが生成する画像出力
+api_output/
 
 # IDE
 .vscode/

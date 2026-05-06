@@ -1,0 +1,16 @@
+{
+  "type": 2,
+  "waveA": {
+    "vertices": [
+      {"x": 0, "y": 0},
+      {"x": 1, "y": 0.5},
+      {"x": 2, "y": 1},
+      {"x": 3, "y": 0.5},
+      {"x": 4, "y": 0}
+    ],
+    "speed": 1,
+    "direction": 1
+  },
+  "params": { "x": 5, "t": 2 },
+  "filenamePrefix": "type2"
+}

@@ -1,0 +1,20 @@
+{
+  "name": "wave-problem-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local REST API for the wave-superposition problem generator. Wraps existing browser JS via Node vm + node-canvas.",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node api_server.js",
+    "test": "node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js",
+    "smoke": "node api/smoke.js"
+  },
+  "dependencies": {
+    "canvas": "^3.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "zod": "^3.23.8"
+  }
+}

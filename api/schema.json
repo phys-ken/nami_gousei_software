@@ -1,0 +1,88 @@
+{
+  "version": "1.0",
+  "title": "Wave Problem Generator API",
+  "description": "Generate physics wave-superposition problem images programmatically. POST a problem spec to /api/generate; receive PNG file paths (or inline dataURLs).",
+  "endpoints": {
+    "POST /api/generate": "Generate problem images for one problem spec",
+    "GET /api/health": "Service liveness check",
+    "GET /api/schema": "This document",
+    "GET /api/output/:session/:file": "Serve a generated PNG by session+filename"
+  },
+  "wave": {
+    "vertices": "Array of {x:int, y:multiple-of-0.5}. Sorted by x.",
+    "speed": "Number, propagation speed (cells/sec). Distractor waves typically use 0 (static).",
+    "direction": "1 = right-going, -1 = left-going",
+    "label": "Optional label string ('A', 'B', etc.)"
+  },
+  "grid": {
+    "default": { "xMin": 0, "xMax": 10, "yMin": -2, "yMax": 2,
+                  "paddingLeft": 52, "paddingRight": 52, "paddingTop": 32, "paddingBottom": 44 }
+  },
+  "cellSize": {
+    "description": "Optional fixed cell pixel size. null = auto. Range: 15..120.",
+    "type3-note": "For type 3 only y-axis cellSize.h is used; the y-t graph width is fixed at 580px."
+  },
+  "style": "'gray' (default) | 'bw' (black-and-white print) | custom object",
+  "types": {
+    "1": {
+      "name": "Single wave at specified time",
+      "params": ["answerT"],
+      "waveB": false,
+      "supportsChoices": false
+    },
+    "2": {
+      "name": "Displacement at point and time (numeric answer)",
+      "params": ["x", "t"],
+      "waveB": false,
+      "supportsChoices": false
+    },
+    "3": {
+      "name": "y-t graph at specific x location",
+      "params": ["x", "tMax"],
+      "waveB": false,
+      "supportsChoices": true,
+      "distractor-shape": "Wave with vertices in (t,y) space; rendered statically (no propagation)."
+    },
+    "4": {
+      "name": "Superposition at specified time",
+      "params": ["answerT"],
+      "waveB": true,
+      "supportsChoices": true,
+      "distractor-shape": "Wave with vertices in (x,y) space; rendered statically as a candidate sum-wave."
+    },
+    "5": {
+      "name": "Superposition over time range",
+      "params": ["tStart", "tEnd"],
+      "waveB": true,
+      "supportsChoices": false
+    },
+    "6": {
+      "name": "Reflection at boundary, single time",
+      "params": ["answerT", "boundary", "endType"],
+      "endType": "'fixed' | 'free'",
+      "waveB": false,
+      "supportsChoices": true,
+      "distractor-shape": "Wave with vertices in (x,y) space; rendered statically as a candidate combined wave inside the boundary."
+    },
+    "7": {
+      "name": "Reflection over time range",
+      "params": ["tStart", "tEnd", "boundary", "endType"],
+      "waveB": false,
+      "supportsChoices": false
+    }
+  },
+  "choices": {
+    "enabled": "boolean — opt-in",
+    "count": "2..10 (total options including the correct one)",
+    "distractors": "Array of WaveSpec, length must equal count - 1",
+    "shuffle": "default true. Seeded by hash of (waveA + params + count) so the same input always produces the same shuffle.",
+    "response": "files.choices is an array in DISPLAY order. Each entry has {path|dataUrl, isCorrect, label, originalIndex}. originalIndex 0 is the correct answer in pre-shuffle order."
+  },
+  "output": {
+    "default": "Files written to ./api_output/{sessionId}/. Response includes absolute paths.",
+    "outputDir": "Override the directory (must be an absolute path).",
+    "filenamePrefix": "Default 'q001'. Files named '{prefix}_question_1.png', etc.",
+    "inline": "If true, response contains base64 dataUrls instead of file paths. No files are written.",
+    "manifest.json": "Saved alongside files; contains the full request + response (for reproducibility)."
+  }
+}
