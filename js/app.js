@@ -803,6 +803,75 @@ const App = {
     if (clickedBtn) clickedBtn.classList.add('active');
 
     if (tabName === 'preview') this.renderPreview();
+    if (tabName === 'problems') this._autoAdjustYRange();
+  },
+
+  /**
+   * 合成波（または単独波）の最大変位を返す。
+   * 複数の (t, x) をサンプリングして実測値を求める。
+   * 波形なし（全頂点空）の場合は 0 を返す。
+   */
+  _computeMaxDisplacement() {
+    if (this.waveA.vertices.length === 0) return 0;
+
+    const { xMin, xMax } = this.gridConfig;
+
+    // 反射波モード: 入射波最大振幅×2 を上限とする（構成的干渉の最悪ケース）
+    if (this.reflectionConfig.enabled) {
+      return Math.max(...this.waveA.vertices.map(v => Math.abs(v.y))) * 2;
+    }
+
+    const hasB = this.hasWaveB && this.waveB.vertices.length > 0;
+    const tMax  = (xMax - xMin) * 2; // 両波が領域を一往復する時間
+    const tStep = 0.25;
+    const xStep = 0.25;
+    let maxY = 0;
+
+    for (let t = 0; t <= tMax; t += tStep) {
+      for (let x = xMin; x <= xMax; x += xStep) {
+        const yA = this.waveA.getYAtTime(x, t);
+        const yB = hasB ? this.waveB.getYAtTime(x, t) : 0;
+        const abs = Math.abs(yA + yB);
+        if (abs > maxY) maxY = abs;
+      }
+    }
+
+    return maxY;
+  },
+
+  /**
+   * 設問作成タブへの遷移時に y 軸範囲を自動調整する。
+   * 合成波の最大変位 + 1 を対称な上下限として設定する。
+   */
+  _autoAdjustYRange() {
+    const maxY = this._computeMaxDisplacement();
+    if (maxY === 0) return; // 波形なし
+
+    const newBound = Math.ceil(maxY) + 1;
+    const prev = { yMin: this.gridConfig.yMin, yMax: this.gridConfig.yMax };
+
+    this.gridConfig.yMin = -newBound;
+    this.gridConfig.yMax =  newBound;
+    document.getElementById('yMin').value = -newBound;
+    document.getElementById('yMax').value =  newBound;
+
+    this._setupEditorA();
+    if (this.hasWaveB) this._setupEditorB();
+    this._refreshActiveChoicesPanel();
+
+    if (prev.yMin !== -newBound || prev.yMax !== newBound) {
+      this._showToast(`y 軸を自動調整しました：${-newBound} 〜 ${newBound}`);
+    }
+  },
+
+  /** 画面右下に一時的なトースト通知を表示する */
+  _showToast(message) {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = message;
+    document.body.appendChild(el);
+    // アニメーション完了後に DOM から除去（3.2s 表示 + 0.4s フェードアウト）
+    setTimeout(() => el.remove(), 3700);
   },
 
   // ------------------------------------------------------------------

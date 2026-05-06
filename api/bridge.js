@@ -6,6 +6,7 @@ const { loadAllJsModules } = require('./loader');
 const {
   buildState, callGenerator,
   attachType3Or4Choices, attachType6Seed,
+  autoAdjustYRange,
 } = require('./translate');
 const {
   newSessionId, ensureDir, buildResponse,
@@ -33,6 +34,7 @@ class Bridge {
     this.init();
     const { ProblemGenerator } = this.sandbox;
     const state = buildState(spec, this.sandbox);
+    autoAdjustYRange(spec, state, this.sandbox);
     const gen = new ProblemGenerator(state);
 
     const result = callGenerator(gen, spec.type, spec, this.sandbox);
@@ -53,6 +55,7 @@ class Bridge {
     return buildResponse({
       result, spec, sandbox: this.sandbox,
       sessionDir, sessionId, prefix, inline,
+      gridConfig: state.gridConfig,
     });
   }
 }

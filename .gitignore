@@ -27,6 +27,9 @@ node_modules/
 # API サーバーが生成する画像出力
 api_output/
 
+# テスト自動生成画像
+tests/output/
+
 # IDE
 .vscode/
 .idea/

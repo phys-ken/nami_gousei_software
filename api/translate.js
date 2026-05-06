@@ -135,6 +135,48 @@ function attachType6Seed(result, spec, sandbox) {
   }
 }
 
+/**
+ * y 軸範囲を自動調整する。
+ * spec.grid に yMin / yMax が明示されていない場合のみ実行し、
+ * 合成波の最大変位 + 1 を対称な上下限として state.gridConfig を上書きする。
+ */
+function autoAdjustYRange(spec, state, sandbox) {
+  // yMin または yMax が明示指定されていたらスキップ
+  if (spec.grid && (spec.grid.yMin !== undefined || spec.grid.yMax !== undefined)) return;
+
+  const waveA = buildWave(spec.waveA, sandbox);
+  if (!waveA || waveA.vertices.length === 0) return;
+
+  const { xMin, xMax } = state.gridConfig;
+  let maxY;
+
+  if (spec.type === 6 || spec.type === 7) {
+    // 反射波モード: 頂点最大振幅 × 2（構成的干渉の最悪ケース）
+    maxY = Math.max(...waveA.vertices.map(v => Math.abs(v.y))) * 2;
+  } else {
+    const waveB = spec.waveB ? buildWave(spec.waveB, sandbox) : null;
+    const hasB  = waveB && waveB.vertices.length > 0;
+    const tMax  = (xMax - xMin) * 2;
+    const tStep = 0.25;
+    const xStep = 0.25;
+    maxY = 0;
+
+    for (let t = 0; t <= tMax; t += tStep) {
+      for (let x = xMin; x <= xMax; x += xStep) {
+        const yA  = waveA.getYAtTime(x, t);
+        const yB  = hasB ? waveB.getYAtTime(x, t) : 0;
+        const abs = Math.abs(yA + yB);
+        if (abs > maxY) maxY = abs;
+      }
+    }
+  }
+
+  if (maxY === 0) return;
+  const newBound = Math.ceil(maxY) + 1;
+  state.gridConfig.yMin = -newBound;
+  state.gridConfig.yMax =  newBound;
+}
+
 module.exports = {
   GRID_DEFAULTS,
   resolveStyle,
@@ -144,4 +186,5 @@ module.exports = {
   attachType3Or4Choices,
   attachType6Seed,
   buildSeedSource,
+  autoAdjustYRange,
 };

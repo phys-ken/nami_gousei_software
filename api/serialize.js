@@ -39,7 +39,7 @@ function applyShuffle(items, seed, sandbox) {
  * Convert a generator result + spec into the API response shape.
  * Writes PNG files (or returns dataURLs when inline=true) and returns the JSON-safe response.
  */
-function buildResponse({ result, spec, sandbox, sessionDir, sessionId, prefix, inline }) {
+function buildResponse({ result, spec, sandbox, sessionDir, sessionId, prefix, inline, gridConfig }) {
   const writeOrInline = (canvas, basename) => {
     if (inline) {
       return { dataUrl: canvasToDataUrl(canvas) };
@@ -79,6 +79,7 @@ function buildResponse({ result, spec, sandbox, sessionDir, sessionId, prefix, i
     type: spec.type,
     sessionId,
     outputDir: inline ? null : sessionDir,
+    gridConfig: gridConfig || null,
     questionText: result.questionText || null,
     answerText: result.answerText || null,
     answerValue: result.answerValue ?? null,

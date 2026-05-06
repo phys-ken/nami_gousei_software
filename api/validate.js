@@ -17,17 +17,19 @@ const WaveSpec = z.object({
 });
 
 const GridSpec = z.object({
-  xMin: z.number(),
-  xMax: z.number(),
-  yMin: z.number(),
-  yMax: z.number(),
+  xMin: z.number().optional(),
+  xMax: z.number().optional(),
+  yMin: z.number().optional(),
+  yMax: z.number().optional(),
   paddingLeft: z.number().int().nonnegative().optional(),
   paddingRight: z.number().int().nonnegative().optional(),
   paddingTop: z.number().int().nonnegative().optional(),
   paddingBottom: z.number().int().nonnegative().optional(),
-}).refine((g) => g.xMin < g.xMax && g.yMin < g.yMax, {
-  message: 'xMin < xMax and yMin < yMax must hold',
-});
+}).refine((g) => {
+  if (g.xMin !== undefined && g.xMax !== undefined && g.xMin >= g.xMax) return false;
+  if (g.yMin !== undefined && g.yMax !== undefined && g.yMin >= g.yMax) return false;
+  return true;
+}, { message: 'xMin < xMax and yMin < yMax must hold' });
 
 const CellSize = z.object({
   w: z.number().int().min(15).max(120).nullable().optional(),
