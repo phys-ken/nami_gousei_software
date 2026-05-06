@@ -1,0 +1,17 @@
+{
+  "type": 1,
+  "style": "gray",
+  "waveA": {
+    "sineMode": true,
+    "sineConfig": {
+      "amplitude": 1,
+      "wavelength": 4,
+      "phaseShift": 0,
+      "waveType": "continuous"
+    },
+    "speed": 1,
+    "direction": 1
+  },
+  "params": { "answerT": 3 },
+  "filenamePrefix": "type1_sine"
+}
