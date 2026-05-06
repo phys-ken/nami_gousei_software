@@ -1,10 +1,10 @@
 'use strict';
 
-// Add the out-of-Drive node_modules location to the resolver, since
-// Google Drive's virtual filesystem cannot store node_modules trees reliably.
+// Allow overriding node_modules location via env var.
+// Useful when running from a Google Drive folder where node_modules trees fail to sync.
 const path = require('node:path');
 const RUNTIME_NODE_MODULES = process.env.WAVE_API_NODE_MODULES
-  || 'C:\\Users\\croma\\.node_caches\\wave-problem-api\\node_modules';
+  || path.join(__dirname, 'node_modules');
 require('node:module').Module.globalPaths.push(RUNTIME_NODE_MODULES);
 process.env.NODE_PATH = process.env.NODE_PATH
   ? `${process.env.NODE_PATH}${path.delimiter}${RUNTIME_NODE_MODULES}`
