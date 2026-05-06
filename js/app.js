@@ -125,6 +125,16 @@ const App = {
     this._saveSineConfig(name);
     this._updateWaveModeUI(name);
     this._renderSineWavePreview(name);   // Phase 3 で実装; Phase 2 では no-op
+
+    // wave A のモードが変わったら distractor の型と選択肢パネルも更新
+    if (name === 'A') {
+      ['type3', 'type4', 'type6'].forEach(t => {
+        if (this.choicesConfig[t].enabled) {
+          this._resizeDistractors(t, this.choicesConfig[t].count);
+          this._renderChoicesList(t);
+        }
+      });
+    }
   },
 
   /** 正弦波パラメータ入力欄の onchange ハンドラ */
@@ -413,14 +423,44 @@ const App = {
   },
 
   /**
-   * 選択肢数を変更（Wave 配列を伸縮）
+   * 選択肢数を変更（Wave / SineWave 配列を伸縮・型変換）
    * 必要数 = count - 1（正答は自動生成のため distractors には含めない）
    */
   _resizeDistractors(type, count) {
     const need = Math.max(0, count - 1);
     const arr  = this.choicesConfig[type].distractors;
-    while (arr.length < need) arr.push(new Wave());
+    const mode = this._activeDistractorMode();
+    // 既存要素の型を現在のモードに合わせて変換
+    for (let i = 0; i < arr.length; i++) {
+      const isSine = arr[i] instanceof SineWave;
+      if (mode === 'sine' && !isSine) {
+        arr[i] = this._newSineDistractor();
+      } else if (mode !== 'sine' && isSine) {
+        arr[i] = new Wave();
+      }
+    }
+    while (arr.length < need) {
+      arr.push(mode === 'sine' ? this._newSineDistractor() : new Wave());
+    }
     while (arr.length > need) arr.pop();
+  },
+
+  /** distractor 用 SineWave のデフォルト生成（波 A の速さ・向きを引き継ぐ） */
+  _newSineDistractor() {
+    return new SineWave({
+      sineConfig: this._defaultSineConfig(),
+      speed:      this.waveASine ? this.waveASine.speed     : 1,
+      direction:  this.waveASine ? this.waveASine.direction : 1,
+      label:      'A',
+    });
+  },
+
+  /**
+   * distractor のモードを返す（wave A モードに準拠）
+   * type3 / type4 / type6 すべて wave A が基準
+   */
+  _activeDistractorMode() {
+    return this.waveAMode;
   },
 
   /**
@@ -464,9 +504,16 @@ const App = {
   clearDistractor(type, idx) {
     const w = this.choicesConfig[type].distractors[idx];
     if (!w) return;
-    w.clear();
-    const ed = this._choiceEditors[type][idx];
-    if (ed) ed.render();
+    if (w instanceof SineWave) {
+      // SineWave をデフォルト設定にリセット
+      w.sineConfig = this._defaultSineConfig();
+      this._saveChoicesConfig();
+      this._refreshSineDistractorPreview(type, idx);
+    } else {
+      w.clear();
+      const ed = this._choiceEditors[type][idx];
+      if (ed) ed.render();
+    }
   },
 
   /** 正答プレビューを再描画（波A・波B・パラメータの変更を反映） */
@@ -527,18 +574,23 @@ const App = {
     }
     listEl.appendChild(correctItem.root);
 
-    // 2) 選択肢② 〜 ⑥（distractors）= ユーザ入力
-    for (let i = 0; i < cfg.distractors.length; i++) {
-      const item = this._buildChoiceItemContainer(i + 2, false, () => this.clearDistractor(type, i));
-      const canvas = this._buildDistractorCanvas(type, i);
-      item.canvasArea.appendChild(canvas);
-      listEl.appendChild(item.root);
+    const mode = this._activeDistractorMode();
 
-      // WaveEditor を生成
-      const wave     = cfg.distractors[i];
-      const renderer = this._buildDistractorRenderer(type, canvas);
-      const editor   = new WaveEditor(canvas, wave, renderer, () => this._saveChoicesConfig());
-      this._choiceEditors[type].push(editor);
+    // 2) 選択肢② 〜（distractors）= ユーザ入力
+    for (let i = 0; i < cfg.distractors.length; i++) {
+      if (mode === 'sine') {
+        listEl.appendChild(this._buildSineDistractorItem(type, i));
+      } else {
+        const item = this._buildChoiceItemContainer(i + 2, false, () => this.clearDistractor(type, i));
+        const canvas = this._buildDistractorCanvas(type, i);
+        item.canvasArea.appendChild(canvas);
+        listEl.appendChild(item.root);
+
+        const wave     = cfg.distractors[i];
+        const renderer = this._buildDistractorRenderer(type, canvas);
+        const editor   = new WaveEditor(canvas, wave, renderer, () => this._saveChoicesConfig());
+        this._choiceEditors[type].push(editor);
+      }
     }
   },
 
@@ -587,11 +639,173 @@ const App = {
     return n >= 1 && n <= 10 ? circled[n - 1] : `(${n})`;
   },
 
-  /** 正答 Canvas を生成（ProblemGenerator のヘルパーを利用） */
-  _renderCorrectChoiceCanvas(type) {
-    const gen = new ProblemGenerator({
-      gridConfig:  this.gridConfig,
-      styleConfig: this.styleConfig,
+  // ------------------------------------------------------------------
+  // 正弦波 distractor UI（Phase 5）
+  // ------------------------------------------------------------------
+
+  /**
+   * 正弦波 distractor 1 件分の DOM 要素を生成して返す。
+   * 入力欄変更 → cfg.distractors[idx] の sineConfig を即時更新 → プレビュー再描画。
+   */
+  _buildSineDistractorItem(type, idx) {
+    const cfg  = this.choicesConfig[type];
+    const sw   = cfg.distractors[idx];
+    const sc   = sw.sineConfig;
+    const num  = idx + 2;
+    const pfx  = `distractor-${type}-${idx}-sine`;
+
+    const root = document.createElement('div');
+    root.className = 'choice-item';
+
+    // ── ヘッダー ────────────────────────────────────────────────
+    const header = document.createElement('div');
+    header.className = 'choice-item-header';
+
+    const labelEl = document.createElement('span');
+    labelEl.className = 'choice-item-label';
+    labelEl.textContent = `選択肢 ${this._numToCircled(num)}`;
+    header.appendChild(labelEl);
+
+    const hint = document.createElement('span');
+    hint.className = 'choices-hint';
+    hint.textContent = type === 'type3' ? '波長 = 周期 T として入力' : '正弦波パラメータを設定';
+    header.appendChild(hint);
+
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'choice-item-clear-btn';
+    resetBtn.textContent = 'リセット';
+    resetBtn.onclick = () => this.clearDistractor(type, idx);
+    header.appendChild(resetBtn);
+    root.appendChild(header);
+
+    // ── パラメータ欄 ────────────────────────────────────────────
+    const params = document.createElement('div');
+    params.className = 'sine-distractor-params';
+
+    const makeNumInput = (labelText, id, val, min, max, step) => {
+      const row = document.createElement('label');
+      row.className = 'sine-distractor-label';
+      row.textContent = labelText + '\u00a0';
+      const inp = document.createElement('input');
+      inp.type = 'number'; inp.id = id;
+      inp.value = val; inp.min = min; inp.max = max; inp.step = step;
+      inp.oninput = () => this._onSineDistractorChange(type, idx);
+      row.appendChild(inp);
+      return row;
+    };
+
+    params.appendChild(makeNumInput('振幅', `${pfx}-amp`, sc.amplitude, 0.5, 4, 0.5));
+    params.appendChild(makeNumInput('波長', `${pfx}-wl`,  sc.wavelength, 1, 20, 1));
+    params.appendChild(makeNumInput('初期位相', `${pfx}-ps`, sc.phaseShift, -8, 8, 0.5));
+
+    // サブモード（連続波 / 先頭あり）
+    const modeRow = document.createElement('div');
+    modeRow.className = 'sine-submode-row';
+    const makeModeBtn = (btnLabel, wt) => {
+      const btn = document.createElement('button');
+      btn.className = 'sine-submode-btn' + (sc.waveType === wt ? ' active' : '');
+      btn.textContent = btnLabel;
+      btn.dataset.sineType = wt;
+      btn.onclick = () => {
+        sc.waveType = wt;
+        modeRow.querySelectorAll('.sine-submode-btn').forEach(
+          b => b.classList.toggle('active', b.dataset.sineType === wt)
+        );
+        progDiv.style.display = wt === 'progressive' ? 'block' : 'none';
+        this._saveChoicesConfig();
+        this._refreshSineDistractorPreview(type, idx);
+      };
+      return btn;
+    };
+    modeRow.appendChild(makeModeBtn('連続波', 'continuous'));
+    modeRow.appendChild(makeModeBtn('先頭あり', 'progressive'));
+    params.appendChild(modeRow);
+
+    // 先頭ありパラメータ（x0 + invertPhase）
+    const progDiv = document.createElement('div');
+    progDiv.className = 'sine-distractor-prog-params';
+    progDiv.style.display = sc.waveType === 'progressive' ? 'block' : 'none';
+    progDiv.appendChild(makeNumInput('先頭 x0', `${pfx}-x0`, sc.x0 ?? 0, -10, 10, 1));
+    const invRow = document.createElement('div');
+    invRow.className = 'sine-check-row';
+    const invCb = document.createElement('input');
+    invCb.type = 'checkbox'; invCb.id = `${pfx}-inv`; invCb.checked = sc.invertPhase ?? false;
+    invCb.onchange = () => {
+      sc.invertPhase = invCb.checked;
+      this._saveChoicesConfig();
+      this._refreshSineDistractorPreview(type, idx);
+    };
+    const invLbl = document.createElement('label');
+    invLbl.htmlFor = `${pfx}-inv`;
+    invLbl.textContent = '逆位相で折り返す';
+    invRow.appendChild(invCb);
+    invRow.appendChild(invLbl);
+    progDiv.appendChild(invRow);
+    params.appendChild(progDiv);
+    root.appendChild(params);
+
+    // ── プレビュー Canvas ──────────────────────────────────────
+    const previewCanvas = document.createElement('canvas');
+    previewCanvas.id = `${pfx}-preview`;
+    root.appendChild(previewCanvas);
+
+    // DOM 確定後に描画
+    setTimeout(() => this._refreshSineDistractorPreview(type, idx), 0);
+
+    // _choiceEditors の長さをずらさないよう null を挿入
+    this._choiceEditors[type].push(null);
+
+    return root;
+  },
+
+  /** 正弦波 distractor パラメータ入力 → SineWave を更新 → プレビュー再描画 */
+  _onSineDistractorChange(type, idx) {
+    const sw = this.choicesConfig[type].distractors[idx];
+    if (!(sw instanceof SineWave)) return;
+    const sc  = sw.sineConfig;
+    const pfx = `distractor-${type}-${idx}-sine`;
+
+    const amp = parseFloat(document.getElementById(`${pfx}-amp`)?.value);
+    const wl  = parseFloat(document.getElementById(`${pfx}-wl`)?.value);
+    const ps  = parseFloat(document.getElementById(`${pfx}-ps`)?.value);
+    const x0  = parseFloat(document.getElementById(`${pfx}-x0`)?.value);
+    if (!isNaN(amp) && amp > 0) sc.amplitude  = amp;
+    if (!isNaN(wl)  && wl > 0)  sc.wavelength = wl;
+    if (!isNaN(ps))              sc.phaseShift = ps;
+    if (!isNaN(x0))              sc.x0         = x0;
+
+    this._saveChoicesConfig();
+    this._refreshSineDistractorPreview(type, idx);
+  },
+
+  /** 正弦波 distractor のプレビュー Canvas を再描画 */
+  _refreshSineDistractorPreview(type, idx) {
+    const sw = this.choicesConfig[type].distractors[idx];
+    if (!(sw instanceof SineWave)) return;
+    const pfx    = `distractor-${type}-${idx}-sine`;
+    const canvas = document.getElementById(`${pfx}-preview`);
+    if (!canvas) return;
+
+    const gridCfg = this._distractorGridConfig(type);
+    const size    = this._distractorCanvasSize(type);
+    canvas.width        = size.width;
+    canvas.height       = size.height;
+    canvas.style.width  = `${size.width}px`;
+    canvas.style.height = `${size.height}px`;
+
+    const renderer = new WaveRenderer(canvas, Object.assign({}, gridCfg, {
+      gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
+    }));
+    renderer.clear();
+    renderer.drawGrid();
+    renderer.drawAxes();
+
+    const pts   = sw.getSnapshot(gridCfg.xMin, gridCfg.xMax, 0);
+    const style = this.styleConfig ? this.styleConfig.waveSingle : {};
+    renderer.drawWave(pts, style);
+  },
+
+
       cellSize:    this.cellSize,
     });
 
