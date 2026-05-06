@@ -352,13 +352,8 @@ node tests/sinwave_api_test.js
 
 期待: `7 passed, 0 failed`
 
-**結果**: ❌ FAIL（`2 passed, 9 failed`）  
-詳細: ポート 8001 に当前起動中の旧バージョンの api_server が常駐しているため、別ポート（8003）で新規起動してテストしたところ以下のケースが失敗:  
-- S-1（統合 API テスト）: `statusCode 400 — VALIDATION_ERROR (waveA.vertices: Required)` → **APIサーバのバリデーションが正弦波モードを拒否するバグ** (詳細は下記)  
-- S-3・S-4・S-5: success:false  
-- S-6: yMax が undefined
-
-> ⚠️ **主要バグ (B-3): `api/validate.js` の `WaveSpec` は `sineMode:true` 時に `vertices` が不要なことを `.refine()` で表現しているが、実際にはポート 8001 のサーバが「昨日山弸別のビルド」であり、`SineWave` 機能の益展前の `validate.js` が読み込まれている可能性が高い。または `waveA.sineMode=true` でも `vertices` を `undefined` でなく空配列 `[]` で送ることが API 仕様となっている可能性がある。統合 E2E テストが全 PASS になるまでは Kenya の確認が必要。
+**結果**: ✅ PASS（`11 passed, 0 failed`）  
+詳細: B-3 修正（`sinwave_api_test.js` のポートを環境変数対応化 + 旧プロセス終了）後、デフォルトポート 8001 で全 11 項目 PASS。
 
 ---
 
@@ -399,7 +394,7 @@ Invoke-RestMethod -Uri http://localhost:8001/api/generate -Method Post -ContentT
 | 3-9. Type 7 正弦波 | ✅ PASS |
 | 3-10. y 軸自動調整 | ✅ PASS |
 | 4-1. 折れ線×選択肢 退行確認 | ✅ PASS |
-| 4-2. 正弦波×選択肢 UI 表示 | ✅ PASS（⚠️ B-2 バグあり） |
+| 4-2. 正弦波×選択肢 UI 表示 | ✅ PASS（B-2 修正済み） |
 | 4-3. distractor パラメータ変更 → プレビュー | ✅ PASS |
 | 4-4. 選択肢 PDF エクスポート | ✅ PASS（目視確認は Kenya に委ねる） |
 | 4-5. ZIP エクスポート | ✅ PASS（目視確認は Kenya に委ねる） |
@@ -409,8 +404,8 @@ Invoke-RestMethod -Uri http://localhost:8001/api/generate -Method Post -ContentT
 | 4-9. モード切替 → distractor 型変換 | ✅ PASS |
 | 5. API ユニットテスト全通過 | ✅ PASS（173 件全通過） |
 | 6-1. smoke.js 正弦波チェック | ✅ PASS |
-| 6-2. sinwave_api_test.js E2E | ❌ FAIL（2 passed, 9 failed — バグ B-3 参照） |
-| 6-3. 例示ファイル curl テスト | ⬜ 未実施 |
+| 6-2. sinwave_api_test.js E2E | ✅ PASS（11 passed, 0 failed — B-3 修正済み） |
+| 6-3. 例示ファイル curl テスト | ✅ PASS |
 
 ---
 
@@ -431,13 +426,13 @@ Invoke-RestMethod -Uri http://localhost:8001/api/generate -Method Post -ContentT
 
 ---
 
-## 発見バグ一覧（Kenya に未修正のまま報告）
+## 発見バグ一覧（全件修正済み）
 
 | # | 発見者 | 影響箇所 | 内容 | 状態 |
 |---|--------|---------|------|------|
-| B-1 | Kenya 手動確認（2026-05-06） | `js/app.js` `_setupEditorB()` | 波 B が正弦波モードのとき、エディタ Canvas にマウスオーバーすると波形が一時的に変化する。波 A と同根の stale event listener バグ（コミット `18f8450` で波 A 側は修正済み、波 B 側は未対応） | 未修正 |
-| B-2 | Kenya 手動確認（2026-05-06） | `js/app.js` `_renderCorrectChoiceCanvas()` | Type 4 選択肢モードで正弦波同士の重ね合わせの場合、正答選択肢 Canvas（選択肢①）が整数刻みサンプリングのため折れ線状になる。解説エリアは `_renderSuperposition()` の密サンプリング（修正 `d21ec84`）が適用されており滑らか。正答 Canvas の描画パスが `_renderSuperposition()` を経由していないことが原因と推定 | 未修正 |
-| B-3 | テスト専用エージェント（2026-05-06） | `api/validate.js` または `api_server.js` の起動状態 | `sinwave_api_test.js` E2E テストで `2 passed, 9 failed`。ポート 8001 の api_server が `sineMode:true` の waveA を受け取ったとき `VALIDATION_ERROR: waveA.vertices: Required` を返す。`validate.js` コードは `sineMode && sineConfig` で `vertices` を省略可能としているが、実際に稼働しているサーバーが旧ビルドである可能性が高い。Kenya による再起動確認・または `sinwave_api_test.js` のポート指定修正が必要 | 未修正 |
+| B-1 | Kenya 手動確認（2026-05-06） | `js/app.js` `setWaveMode()` | 波 B が正弦波モードのとき、エディタ Canvas にマウスオーバーすると波形が一時的に変化する。`setWaveMode()` が `_setupEditorB()` を呼ばないため古い WaveEditor が残存する。修正: `_renderSineWavePreview()` 直接呼び出しを `_setupEditorA/B()` 経由に変更 | ✅ 修正済み |
+| B-2 | Kenya 手動確認（2026-05-06） | `js/problems.js` `renderType4CorrectCanvas()` | Type 4 選択肢モードで正弦波同士の重ね合わせの場合、正答選択肢 Canvas（選択肢①）が整数刻みサンプリングのため折れ線状になる。修正: `_renderSuperposition()` と同等の dense-sampling フォールバックを `renderType4CorrectCanvas()` に追加 | ✅ 修正済み |
+| B-3 | テスト専用エージェント（2026-05-06） | `tests/sinwave_api_test.js` + `api_server.js` 起動状態 | `sinwave_api_test.js` E2E テストで `2 passed, 9 failed`。ポート 8001 に旧ビルドの api_server が常駐し `vertices: Required` エラーを返していた。修正: `sinwave_api_test.js` のポートを `process.env.WAVE_API_PORT \|\| 8001` で環境変数対応化し、旧プロセスを終了して新 api_server を 8001 で再起動 | ✅ 修正済み |
 
 ---
 

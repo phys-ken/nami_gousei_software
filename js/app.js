@@ -124,7 +124,13 @@ const App = {
 
     this._saveSineConfig(name);
     this._updateWaveModeUI(name);
-    this._renderSineWavePreview(name);   // Phase 3 で実装; Phase 2 では no-op
+    // エディタの再生成（sine モードならエディタを破棄してプレビュー描画、
+    // vertex モードなら WaveEditor を再生成）
+    if (name === 'A') {
+      this._setupEditorA();
+    } else if (name === 'B' && this.hasWaveB) {
+      this._setupEditorB();
+    }
 
     // wave A のモードが変わったら distractor の型と選択肢パネルも更新
     if (name === 'A') {

@@ -13,6 +13,8 @@ const path = require('path');
 const OUT = path.join(__dirname, 'output');
 if (!fs.existsSync(OUT)) fs.mkdirSync(OUT);
 
+const API_PORT = parseInt(process.env.WAVE_API_PORT || '8001', 10);
+
 let passed = 0;
 let failed = 0;
 
@@ -20,7 +22,7 @@ function post(body) {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify(body);
     const opts = {
-      hostname: 'localhost', port: 8001, path: '/api/generate',
+      hostname: 'localhost', port: API_PORT, path: '/api/generate',
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) },
     };

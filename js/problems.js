@@ -281,14 +281,36 @@ class ProblemGenerator {
     r.drawTimeLabel(t);
     const { xMin, xMax } = r.config;
 
-    const xSet = new Set();
-    for (let xi = Math.floor(xMin); xi <= Math.ceil(xMax); xi++) xSet.add(xi);
-    waveA.getKeyXs(t).forEach(sx => xSet.add(sx));
-    waveB.getKeyXs(t).forEach(sx => xSet.add(sx));
-    const sumPts = [...xSet]
-      .sort((a, b) => a - b)
-      .filter(xi => xi >= xMin && xi <= xMax)
-      .map(xi => ({ x: xi, y: waveA.getYAtTime(xi, t) + waveB.getYAtTime(xi, t) }));
+    // SineWave は getKeyXs が [] を返すため、その場合は密サンプリングにフォールバック
+    const keyA = waveA.getKeyXs(t);
+    const keyB = waveB.getKeyXs(t);
+    const needsDense = (!waveA.isEmpty() && keyA.length === 0) ||
+                       (!waveB.isEmpty() && keyB.length === 0);
+
+    let sumPts;
+    if (needsDense) {
+      const STEP = 0.05;
+      const count = Math.ceil((xMax - xMin) / STEP);
+      sumPts = [];
+      for (let i = 0; i <= count; i++) {
+        const xi = Math.round((xMin + i * STEP) * 10000) / 10000;
+        if (xi > xMax + 1e-9) break;
+        sumPts.push({ x: xi, y: waveA.getYAtTime(xi, t) + waveB.getYAtTime(xi, t) });
+      }
+      const lastX = sumPts.length > 0 ? sumPts[sumPts.length - 1].x : xMin;
+      if (Math.abs(lastX - xMax) > 1e-9) {
+        sumPts.push({ x: xMax, y: waveA.getYAtTime(xMax, t) + waveB.getYAtTime(xMax, t) });
+      }
+    } else {
+      const xSet = new Set();
+      for (let xi = Math.floor(xMin); xi <= Math.ceil(xMax); xi++) xSet.add(xi);
+      keyA.forEach(sx => xSet.add(sx));
+      keyB.forEach(sx => xSet.add(sx));
+      sumPts = [...xSet]
+        .sort((a, b) => a - b)
+        .filter(xi => xi >= xMin && xi <= xMax)
+        .map(xi => ({ x: xi, y: waveA.getYAtTime(xi, t) + waveB.getYAtTime(xi, t) }));
+    }
     r.drawWave(sumPts, this._styleSum);
     return canvas;
   }
