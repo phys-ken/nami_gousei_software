@@ -229,8 +229,35 @@ class ProblemGenerator {
   /**
    * Type3 の正答 y-t グラフを描画した Canvas を返す
    * （ProblemGenerator.generateType3 内のロジックを切り出し・再利用）
+   *
+   * @param {Wave|SineWave} wave   波A（入射波）
+   * @param {number}        x      観測地点
+   * @param {number}        tMax   時間上限
+   * @param {Object}        [opts] オプション
+   *   opts.waveB    {Wave|SineWave}  合成波モード時の波B
+   *   opts.boundary {number}         反射波モード時の境界座標
+   *   opts.endType  {string}         'free'|'fixed'
    */
-  renderType3CorrectCanvas(wave, x, tMax) {
+  renderType3CorrectCanvas(wave, x, tMax, opts = {}) {
+    const waveB    = opts.waveB    || null;
+    const boundary = opts.boundary !== undefined ? opts.boundary : null;
+    const endType  = opts.endType  || 'free';
+
+    const mode = (waveB && !waveB.isEmpty()) ? 'superposition'
+               : (boundary !== null)          ? 'reflection'
+               :                               'single';
+
+    const reflectedWave = (mode === 'reflection')
+      ? this._buildReflectedWave(wave, boundary, endType)
+      : null;
+
+    const getYSum = (ti) => {
+      if (mode === 'superposition') return wave.getYAtTime(x, ti) + waveB.getYAtTime(x, ti);
+      if (mode === 'reflection')    return wave.getYAtTime(x, ti) + reflectedWave.getYAtTime(x, ti);
+      return wave.getYAtTime(x, ti);
+    };
+
+    const ytStyle = (mode === 'single') ? this._styleSingle : this._styleSum;
     const ytConfig = this._type3GridConfig(tMax);
     const h = this._type3CanvasHeight();
     const canvas = this._makeCanvas(WaveRenderer.DEFAULT_DISP_W, h);
@@ -241,10 +268,10 @@ class ProblemGenerator {
     r.drawTimeLabel(null, `x = ${x} [cm] の地点`);
     const pts = [];
     for (let ti = 0; ti <= tMax; ti += 0.05) {
-      pts.push({ x: ti, y: wave.getYAtTime(x, ti) });
+      pts.push({ x: ti, y: getYSum(ti) });
     }
-    pts.push({ x: tMax, y: wave.getYAtTime(x, tMax) });
-    r.drawWave(pts, this._styleSingle);
+    pts.push({ x: tMax, y: getYSum(tMax) });
+    r.drawWave(pts, ytStyle);
     return canvas;
   }
 
@@ -391,6 +418,33 @@ class ProblemGenerator {
   // ================================================================
   generateType3(params) {
     const { wave, x, tMax } = params;
+    // waveB: 合成波モード（波B あり）
+    // boundary / endType: 反射波モード
+    const waveB    = params.waveB    || null;
+    const boundary = params.boundary !== undefined ? params.boundary : null;
+    const endType  = params.endType  || 'free';
+
+    // モード判定
+    // 'superposition': 波B が存在して空でない
+    // 'reflection'   : boundary が指定されている
+    // 'single'       : 進行波（既存動作）
+    const mode = (waveB && !waveB.isEmpty()) ? 'superposition'
+               : (boundary !== null)          ? 'reflection'
+               :                               'single';
+
+    // 反射波モードの場合は反射波インスタンスを生成しておく
+    const reflectedWave = (mode === 'reflection')
+      ? this._buildReflectedWave(wave, boundary, endType)
+      : null;
+
+    // 反射波モードで媒質内かどうかを判定（入射波が右向き(+1) なら x ≤ boundary が媒質）
+    let xOutsideMediumWarning = false;
+    if (mode === 'reflection') {
+      const dir = wave.direction;
+      const insideMedium = dir > 0 ? (x <= boundary) : (x >= boundary);
+      if (!insideMedium) xOutsideMediumWarning = true;
+    }
+
     const gc = this.state.gridConfig;
     const sc = this.state.styleConfig;
     const cs = this.state.cellSize;
@@ -410,6 +464,20 @@ class ProblemGenerator {
       { w: null, h: cs ? cs.h : null }
     );
 
+    /** 時刻 ti での x 地点の合成変位を返す（モード対応） */
+    const getYSum = (ti) => {
+      if (mode === 'superposition') {
+        return wave.getYAtTime(x, ti) + waveB.getYAtTime(x, ti);
+      } else if (mode === 'reflection') {
+        return wave.getYAtTime(x, ti) + reflectedWave.getYAtTime(x, ti);
+      } else {
+        return wave.getYAtTime(x, ti);
+      }
+    };
+
+    /** y-t グラフに用いるスタイル（合成波モード/反射波モードは合成波スタイル） */
+    const ytStyle = (mode === 'single') ? this._styleSingle : this._styleSum;
+
     // y-t グラフ（空白 or 解答線あり）
     const makeYtCanvas = (drawWave) => {
       const canvas = this._makeCanvas(WaveRenderer.DEFAULT_DISP_W, ytSize.height);
@@ -421,28 +489,134 @@ class ProblemGenerator {
       if (drawWave) {
         const pts = [];
         for (let ti = 0; ti <= tMax; ti += 0.05) {
-          pts.push({ x: ti, y: wave.getYAtTime(x, ti) });
+          pts.push({ x: ti, y: getYSum(ti) });
         }
-        pts.push({ x: tMax, y: wave.getYAtTime(x, tMax) });
-        r.drawWave(pts, this._styleSingle);
+        pts.push({ x: tMax, y: getYSum(tMax) });
+        r.drawWave(pts, ytStyle);
       }
       return canvas;
     };
 
-    // 参考用: t ごとの y-x 進行波スナップショット + x=○ の地点マーカー
+    // 参考用スナップショット（モード別）
     const makeSnapWithMarker = (t) => {
-      const canvas = this._makeCanvas();
-      const r      = this._makeRenderer(canvas, {});
-      r.clear();
-      r.drawGrid();
-      r.drawAxes();
-      r.drawTimeLabel(t);
-      const { xMin, xMax } = r.config;
-      r.drawWave(wave.getSnapshot(xMin, xMax, t), this._styleSingle);
-      // x=○ の地点に縦破線ガイド＋目立つ丸マーカー
-      const y = wave.getYAtTime(x, t);
-      r.drawPointMarker(x, y);
-      return canvas;
+      if (mode === 'superposition') {
+        // 波A（破線）＋波B（破線）＋合成波（実線）＋観測点マーカー
+        const canvas = this._makeCanvas();
+        const r      = this._makeRenderer(canvas, {});
+        r.clear();
+        r.drawGrid();
+        r.drawAxes();
+        r.drawTimeLabel(t);
+        const { xMin, xMax } = r.config;
+        if (!wave.isEmpty())  r.drawWave(wave.getSnapshot(xMin, xMax, t), this._styleA);
+        if (!waveB.isEmpty()) r.drawWave(waveB.getSnapshot(xMin, xMax, t), this._styleB);
+        // 合成波（SineWave 対応で密サンプリング or 頂点ベース）
+        const keyA = wave.getKeyXs(t);
+        const keyB = waveB.getKeyXs(t);
+        const needsDense = (!wave.isEmpty() && keyA.length === 0) ||
+                           (!waveB.isEmpty() && keyB.length === 0);
+        let sumPts;
+        if (needsDense) {
+          const STEP = 0.05;
+          const count = Math.ceil((xMax - xMin) / STEP);
+          sumPts = [];
+          for (let i = 0; i <= count; i++) {
+            const xi = Math.round((xMin + i * STEP) * 10000) / 10000;
+            if (xi > xMax + 1e-9) break;
+            sumPts.push({ x: xi, y: wave.getYAtTime(xi, t) + waveB.getYAtTime(xi, t) });
+          }
+          if (sumPts.length > 0 && Math.abs(sumPts[sumPts.length - 1].x - xMax) > 1e-9) {
+            sumPts.push({ x: xMax, y: wave.getYAtTime(xMax, t) + waveB.getYAtTime(xMax, t) });
+          }
+        } else {
+          const xSet = new Set();
+          for (let xi = Math.floor(xMin); xi <= Math.ceil(xMax); xi++) xSet.add(xi);
+          keyA.forEach(sx => xSet.add(sx));
+          keyB.forEach(sx => xSet.add(sx));
+          sumPts = [...xSet]
+            .sort((a, b) => a - b)
+            .filter(xi => xi >= xMin && xi <= xMax)
+            .map(xi => ({ x: xi, y: wave.getYAtTime(xi, t) + waveB.getYAtTime(xi, t) }));
+        }
+        if (sumPts.length >= 2) r.drawWave(sumPts, this._styleSum);
+        r.drawLegend(this._legendAB);
+        const sumY = wave.getYAtTime(x, t) + waveB.getYAtTime(x, t);
+        r.drawPointMarker(x, sumY);
+        return canvas;
+      } else if (mode === 'reflection') {
+        // 反射波モード: 境界線・灰色領域・入射波・反射波・合成波（媒質内）＋観測点マーカー
+        const canvas = this._makeCanvas();
+        const r      = this._makeRenderer(canvas, {});
+        r.clear();
+        r.drawBeyondMediumRegion(boundary, wave.direction);
+        r.drawGrid();
+        r.drawAxes();
+        r.drawTimeLabel(t);
+        r.drawBoundaryLine(boundary);
+        const { xMin, xMax } = r.config;
+        const dir    = wave.direction;
+        const medXMin = dir > 0 ? xMin     : boundary;
+        const medXMax = dir > 0 ? boundary : xMax;
+        if (!wave.isEmpty())         r.drawWave(wave.getSnapshot(xMin, xMax, t), this._styleA);
+        if (!reflectedWave.isEmpty()) {
+          const rpts = reflectedWave.getSnapshot(medXMin, medXMax, t);
+          if (rpts.length >= 2) r.drawWave(rpts, this._styleB);
+        }
+        // 合成波（媒質内のみ）
+        const incKeyXs = wave.getKeyXs(t);
+        const refKeyXs = reflectedWave.getKeyXs(t);
+        const needsDense = (!wave.isEmpty() && incKeyXs.length === 0) ||
+                           (!reflectedWave.isEmpty() && refKeyXs.length === 0);
+        let sumPts;
+        if (needsDense) {
+          const STEP = 0.05;
+          const count = Math.ceil((medXMax - medXMin) / STEP);
+          sumPts = [];
+          for (let i = 0; i <= count; i++) {
+            const xi = Math.round((medXMin + i * STEP) * 10000) / 10000;
+            if (xi > medXMax + 1e-9) break;
+            sumPts.push({ x: xi, y: wave.getYAtTime(xi, t) + reflectedWave.getYAtTime(xi, t) });
+          }
+          if (sumPts.length > 0 && Math.abs(sumPts[sumPts.length - 1].x - medXMax) > 1e-9) {
+            sumPts.push({ x: medXMax, y: wave.getYAtTime(medXMax, t) + reflectedWave.getYAtTime(medXMax, t) });
+          }
+        } else {
+          const xSet = new Set();
+          for (let xi = Math.floor(medXMin); xi <= Math.ceil(medXMax); xi++) xSet.add(xi);
+          incKeyXs.forEach(sx => { if (sx >= medXMin && sx <= medXMax) xSet.add(sx); });
+          refKeyXs.forEach(sx => { if (sx >= medXMin && sx <= medXMax) xSet.add(sx); });
+          sumPts = [...xSet]
+            .sort((a, b) => a - b)
+            .filter(xi => xi >= medXMin && xi <= medXMax)
+            .map(xi => ({ x: xi, y: wave.getYAtTime(xi, t) + reflectedWave.getYAtTime(xi, t) }));
+        }
+        if (sumPts.length >= 2) r.drawWave(sumPts, this._styleSum);
+        r.drawLegend([
+          { label: '入射波', ...this._styleA },
+          { label: '反射波', ...this._styleB },
+          { label: '合成波', ...this._styleSum },
+        ]);
+        // 観測点マーカー（媒質内のみ描画）
+        const insideMedium = dir > 0 ? (x <= boundary) : (x >= boundary);
+        if (insideMedium) {
+          const markerY = wave.getYAtTime(x, t) + reflectedWave.getYAtTime(x, t);
+          r.drawPointMarker(x, markerY);
+        }
+        return canvas;
+      } else {
+        // single（既存）
+        const canvas = this._makeCanvas();
+        const r      = this._makeRenderer(canvas, {});
+        r.clear();
+        r.drawGrid();
+        r.drawAxes();
+        r.drawTimeLabel(t);
+        const { xMin, xMax } = r.config;
+        r.drawWave(wave.getSnapshot(xMin, xMax, t), this._styleSingle);
+        const y = wave.getYAtTime(x, t);
+        r.drawPointMarker(x, y);
+        return canvas;
+      }
     };
 
     // 参考画像: t=0〜tMax の各整数時刻の y-x グラフ（地点マーカー付き）
@@ -451,19 +625,65 @@ class ProblemGenerator {
       refCanvases.push(makeSnapWithMarker(t));
     }
 
-    return {
-      questionText:
+    // 問題文・設問 Canvas をモード別に構築
+    let questionText, questionCanvases;
+    if (mode === 'superposition') {
+      const dirA = wave.direction  > 0 ? '右' : '左';
+      const dirB = waveB.direction > 0 ? '右' : '左';
+      questionText =
         `x = ${x} [cm] の地点の媒質について、\n` +
-        `t = 0 〜 ${tMax} [s] の変位の変化を y − t グラフで示せ。`,
-      questionCanvases: [
+        `t = 0 〜 ${tMax} [s] の合成変位の変化を y − t グラフで示せ。\n` +
+        `（波A: 速さ ${wave.speed} cm/s、${dirA}向き  ／  波B: 速さ ${waveB.speed} cm/s、${dirB}向き）`;
+      questionCanvases = [
+        this._renderSnapshot([wave, waveB], 0, [this._styleA, this._styleB], {
+          timeLabel: 't = 0 [s]（参考）',
+        }),
+        makeYtCanvas(false),
+      ];
+    } else if (mode === 'reflection') {
+      const dirStr  = wave.direction > 0 ? '右' : '左';
+      const endStr  = endType === 'fixed' ? '固定端' : '自由端';
+      questionText =
+        `x = ${x} [cm] の地点の媒質について、\n` +
+        `t = 0 〜 ${tMax} [s] の合成変位の変化を y − t グラフで示せ。\n` +
+        `（波A: 速さ ${wave.speed} cm/s、${dirStr}向き。x = ${boundary} [cm] で反射（${endStr}））` +
+        (xOutsideMediumWarning ? '\n※ 観測点が媒質の外にあります。入射波のみの変位を示します。' : '');
+      questionCanvases = [
+        this._renderReflectionCanvas(wave, boundary, endType, 0, {
+          showIncident: true, showReflected: true, showSum: false,
+          timeLabel: 't = 0 [s]（参考）',
+        }),
+        makeYtCanvas(false),
+      ];
+    } else {
+      const dirStr = wave.direction > 0 ? '右' : '左';
+      questionText =
+        `x = ${x} [cm] の地点の媒質について、\n` +
+        `t = 0 〜 ${tMax} [s] の変位の変化を y − t グラフで示せ。`;
+      questionCanvases = [
         this._renderSnapshot([wave], 0, [this._styleSingle], { timeLabel: 't = 0 [s]（参考）' }),
         makeYtCanvas(false),
-      ],
-      answerText:    `x = ${x} [cm] の y − t グラフ`,
+      ];
+    }
+
+    const answerText = mode === 'single'
+      ? `x = ${x} [cm] の y − t グラフ`
+      : `x = ${x} [cm] の合成波 y − t グラフ`;
+
+    const refSectionNote = mode === 'single'
+      ? '各コマの ● の高さを読み取り、y−t グラフの対応する t の列にプロットしてください。'
+      : '各コマの ● の高さ（合成変位）を読み取り、y−t グラフの対応する t の列にプロットしてください。';
+
+    return {
+      questionText,
+      questionCanvases,
+      answerText,
       answerCanvases: [makeYtCanvas(true), ...refCanvases],
       answerValue:   null,
       // 参考画像を別キーで渡す（_renderProblemOutput で参照用ラベルを付けるため）
       refCanvases,
+      refSectionNote,
+      xOutsideMediumWarning,
     };
   }
 

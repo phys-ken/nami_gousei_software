@@ -287,6 +287,72 @@ describe('Bridge.generate — Type3（y-t グラフ）', () => {
   });
 });
 
+describe('Bridge.generate — Type3 合成波モード（waveB あり）', () => {
+  it('waveB を渡すと success:true を返す', () => {
+    const r = gen({
+      type: 3,
+      waveA: WAVE_A_TRIANGLE,
+      waveB: WAVE_B_TRIANGLE,
+      params: { x: 4, tMax: 6 },
+    }, 't3-super');
+    assert.ok(r.success);
+  });
+
+  it('ref スナップショット列が生成される', () => {
+    const r = gen({
+      type: 3,
+      waveA: WAVE_A_TRIANGLE,
+      waveB: WAVE_B_TRIANGLE,
+      params: { x: 4, tMax: 6 },
+    }, 't3-super-b');
+    assert.ok(r.files.ref.length > 0);
+    assert.ok(fs.existsSync(r.files.ref[0].path));
+  });
+
+  it('選択肢あり（count=4）で4つの choices が返る', () => {
+    const r = gen({
+      type: 3,
+      waveA: WAVE_A_TRIANGLE,
+      waveB: WAVE_B_TRIANGLE,
+      params: { x: 4, tMax: 6 },
+      choices: { enabled: true, count: 4, shuffle: false, distractors: THREE_DISTRACTORS },
+    }, 't3-super-c');
+    assert.ok(r.success);
+    assert.equal(r.files.choices.length, 4);
+  });
+});
+
+describe('Bridge.generate — Type3 反射波モード（固定端）', () => {
+  it('boundary と endType=fixed を渡すと success:true を返す', () => {
+    const r = gen({
+      type: 3,
+      waveA: WAVE_A_TRIANGLE,
+      params: { x: 2, tMax: 8, boundary: 8, endType: 'fixed' },
+    }, 't3-refl-fixed');
+    assert.ok(r.success);
+  });
+
+  it('ref スナップショット列が生成される', () => {
+    const r = gen({
+      type: 3,
+      waveA: WAVE_A_TRIANGLE,
+      params: { x: 2, tMax: 8, boundary: 8, endType: 'fixed' },
+    }, 't3-refl-fixed-b');
+    assert.ok(r.files.ref.length > 0);
+  });
+});
+
+describe('Bridge.generate — Type3 反射波モード（自由端）', () => {
+  it('endType=free でも success:true を返す', () => {
+    const r = gen({
+      type: 3,
+      waveA: WAVE_A_TRIANGLE,
+      params: { x: 2, tMax: 8, boundary: 8, endType: 'free' },
+    }, 't3-refl-free');
+    assert.ok(r.success);
+  });
+});
+
 describe('Bridge.generate — Type4（合成波）', () => {
   it('success:true を返す', () => {
     const r = gen({ type: 4, waveA: WAVE_A_TRIANGLE, waveB: WAVE_B_TRIANGLE, params: { answerT: 3 } }, 't4');

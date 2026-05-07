@@ -1,0 +1,26 @@
+{
+  "type": 3,
+  "style": "bw",
+  "waveA": {
+    "vertices": [
+      {"x": 2, "y": 0},
+      {"x": 3, "y": 1},
+      {"x": 5, "y": 1},
+      {"x": 6, "y": 0}
+    ],
+    "speed": 1,
+    "direction": 1
+  },
+  "waveB": {
+    "vertices": [
+      {"x": 4, "y": 0},
+      {"x": 5, "y": -1},
+      {"x": 7, "y": -1},
+      {"x": 8, "y": 0}
+    ],
+    "speed": 1,
+    "direction": -1
+  },
+  "params": { "x": 4, "tMax": 6 },
+  "filenamePrefix": "type3_superposition"
+}

@@ -42,8 +42,15 @@ function callGenerator(gen, type, spec, sandbox) {
       return gen.generateType1({ wave: waveA, answerT: p.answerT });
     case 2:
       return gen.generateType2({ wave: waveA, x: p.x, t: p.t });
-    case 3:
-      return gen.generateType3({ wave: waveA, x: p.x, tMax: p.tMax });
+    case 3: {
+      const params3 = { wave: waveA, x: p.x, tMax: p.tMax };
+      if (waveB && !waveB.isEmpty()) params3.waveB = waveB;
+      if (p.boundary !== undefined && p.endType !== undefined) {
+        params3.boundary = p.boundary;
+        params3.endType = p.endType;
+      }
+      return gen.generateType3(params3);
+    }
     case 4:
       return gen.generateType4({ waveA, waveB, answerT: p.answerT });
     case 5:
@@ -86,7 +93,14 @@ function attachType3Or4Choices(result, gen, spec, sandbox) {
 
   let correctCanvas;
   if (type === 3) {
-    correctCanvas = gen.renderType3CorrectCanvas(buildWave(spec.waveA, sandbox), spec.params.x, spec.params.tMax);
+    const opts3 = {};
+    if (spec.waveB) {
+      const wB3 = buildWave(spec.waveB, sandbox);
+      if (wB3 && !wB3.isEmpty()) opts3.waveB = wB3;
+    }
+    if (spec.params.boundary !== undefined) opts3.boundary = spec.params.boundary;
+    if (spec.params.endType !== undefined) opts3.endType = spec.params.endType;
+    correctCanvas = gen.renderType3CorrectCanvas(buildWave(spec.waveA, sandbox), spec.params.x, spec.params.tMax, opts3);
   } else if (type === 4) {
     correctCanvas = gen.renderType4CorrectCanvas(
       buildWave(spec.waveA, sandbox),
@@ -117,7 +131,10 @@ function buildSeedSource(type, spec) {
   const cfg = spec.choices;
   const aJson = JSON.stringify(spec.waveA);
   if (type === 3) {
-    return `t3|${aJson}|x=${spec.params.x}|tMax=${spec.params.tMax}|n=${cfg.count}`;
+    const bJson3 = spec.waveB ? JSON.stringify(spec.waveB) : '';
+    const bStr3 = bJson3 ? `|B=${bJson3}` : '';
+    const rStr3 = (spec.params.boundary !== undefined) ? `|b=${spec.params.boundary}|e=${spec.params.endType}` : '';
+    return `t3|${aJson}|x=${spec.params.x}|tMax=${spec.params.tMax}|n=${cfg.count}${bStr3}${rStr3}`;
   }
   if (type === 4) {
     const bJson = JSON.stringify(spec.waveB);
