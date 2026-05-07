@@ -1,7 +1,7 @@
 # 波の重ね合わせ 設問作成ソフト
 
-物理教員向けの波形設問（PNG / PDF / ZIP）自動生成ツールです。  
-ブラウザ上で波形を手描きし、問題・解答画像を即座に出力できます。
+物理教員向けの波形設問（PNG / PDF / DOCX / ZIP 一括）自動生成ツールです。  
+ブラウザ上で波形を手描きし、問題・解答・解説をワンクリックで出力できます。
 
 ## ブラウザで今すぐ使う（インストール不要）
 
@@ -15,11 +15,11 @@
 
 | 機能 | 説明 |
 |------|------|
-| 波形エディタ | グリッドをクリック／ドラッグして波形の頂点を設定 |
+| 波形エディタ | グリッドをクリック／ドラッグして波形の頂点を設定（折れ線・正弦波の両モード対応） |
 | 設問タイプ 1〜7 | y-x グラフ・数値解答・y-t グラフ・合成波・反射波など |
 | 選択肢モード | Type 3/4/6 で誤答を登録し、選択問題に変換 |
-| スタイル切替 | `gray`（スクリーン用）/ `bw`（白黒印刷用） |
-| 出力形式 | PNG 個別ダウンロード・PDF・ZIP 一括 |
+| スタイル切替 | `gray`（スクリーン用）/ `bw`（白黒印刷用）/ カスタム |
+| 出力形式 | 問題 PDF・解答 PDF・**DOCX（問題＋解答＋解説、Word で編集可）**・**ZIP 一括（PDF + DOCX + 全画像 + テキスト）** |
 
 ## 設問タイプ一覧
 
@@ -67,10 +67,10 @@ node api_server.js
 ## テスト
 
 ```bash
-# 波形ロジック・レンダラ・乱数
-node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js
+# 波形ロジック・レンダラ・乱数（105 ケース）
+npm test
 
-# API バックエンド
+# API バックエンド堅牢性テスト（74 ケース）
 node --test tests/api.test.js
 ```
 
@@ -81,12 +81,21 @@ node --test tests/api.test.js
 ```
 index.html              ブラウザ UI のエントリポイント
 js/                     描画・物理・UI ロジック（ブラウザ専用）
+  ├ wave.js / renderer.js / editor.js / problems.js
+  ├ exporter.js         PNG / PDF / DOCX / ZIP 一括ダウンロード
+  ├ random.js / styles.js / app.js
 css/                    スタイルシート
 api/                    REST API バックエンド（Node.js）
+  ├ bridge.js           sync(generate) / async(generateFull) ブリッジ
+  ├ serialize.js        PNG / DOCX / TXT / Bundle ZIP の書き出し
+  ├ docx-writer.js      Node.js 用 DOCX バッファ生成
+  ├ validate.js         Zod スキーマ
+  └ ...
 api_server.js           Express サーバー（静的:8000 + API:8001）
 tests/                  Node.js ユニット・統合テスト
 server.py               Python 簡易静的サーバー
 API.md                  REST API 詳細仕様書
+CLAUDE.md               Claude Code 向け開発ガイド
 ```
 
 ---

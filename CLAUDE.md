@@ -12,7 +12,7 @@ python server.py
 # 終了: Ctrl+C
 ```
 
-静的ファイルのみで動作するため、ビルドステップ・依存インストールは不要。CDN ライブラリ（jsPDF・JSZip）はブラウザ起動時にインターネット経由で読み込まれる。
+静的ファイルのみで動作するため、ビルドステップ・依存インストールは不要。CDN ライブラリ（jsPDF・JSZip・docx）はブラウザ起動時にインターネット経由で読み込まれる。docx は UMD ビルド `https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js` を使用（`/build/index.js` は存在しないので注意）。
 
 ### ブラウザ UI ＋ REST API（Node.js）
 
@@ -44,11 +44,11 @@ npm test
 # または個別に
 node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js
 
-# API バックエンド堅牢性・安全性テスト（68 ケース）
+# API バックエンド堅牢性・安全性テスト（74 ケース）
 # node_modules が ./node_modules にない場合は WAVE_API_NODE_MODULES を指定
 node --test tests/api.test.js
 
-# 全テスト一括（サーバー不要）
+# 全テスト一括（サーバー不要、179 ケース）
 node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests/api.test.js
 
 # HTTP 統合テスト（node api_server.js 起動中に実行すること）
@@ -65,7 +65,7 @@ npm run smoke
 - `wave.js`: 71 ケース（Wave: setVertex / getY / getYAtTime / getSnapshot / clear / toJSON / reflect、SineWave: getYAtTime / getSnapshot / reflect / toJSON）
 - `renderer.js`: 16 ケース（`computeCanvasSize`）
 - `random.js`: 18 ケース（djb2 ハッシュ・mulberry32 PRNG・seededShuffle の決定論性）
-- `api.test.js`: 68 ケース（バリデーション・Type1〜7 生成・正弦波モード・選択肢・シャッフル決定論性・inline モード・パストラバーサル防御・並行安全性・エッジケース）
+- `api.test.js`: 74 ケース（バリデーション・Type1〜7 生成・正弦波モード・選択肢・シャッフル決定論性・inline モード・パストラバーサル防御・並行安全性・エッジケース）。同期版 `bridge.generate()` を呼ぶため DOCX/Bundle ZIP 生成はテストの対象外（生成自体の動作確認は `npm run smoke` または手動 curl で実施）
 - `problems.js`・`editor.js`・`exporter.js`・`app.js` はブラウザ Canvas/DOM に依存するためブラウザでのみ動作確認可能
 
 ## アーキテクチャ
@@ -79,7 +79,7 @@ Wave（物理エンジン）
     ↓ getSnapshot(xMin, xMax, t)
 WaveRenderer（Canvas描画）
     ↓ canvas.toDataURL()
-ProblemGenerator → Exporter（PDF/PNG/ZIP）
+ProblemGenerator → Exporter（PNG / PDF / DOCX / ZIP 一括）
 App（コントローラ・UI状態）
 ```
 
@@ -90,8 +90,12 @@ POST /api/generate (JSON)
     ↓ api/validate.js（Zod スキーマ）
     ↓ api/translate.js（API 仕様 → ProblemGenerator 状態）
     ↓ api/bridge.js（Node.js vm サンドボックスで js/ を実行）
-    ↓ api/serialize.js（Canvas → PNG → JSON レスポンス）
-GET /api/output/:session/:file
+       ├ generate()        — 同期、PNG のみ（既存テスト互換）
+       └ generateFull()    — 非同期、DOCX / TXT / Bundle ZIP も生成
+    ↓ api/serialize.js（Canvas → PNG）
+    ↓ api/docx-writer.js（docx npm で Word 文書生成）
+    ↓ JSZip で全ファイルを Bundle ZIP に格納
+GET /api/output/:session/:file  （.png/.pdf/.docx/.txt/.zip/.json 許可）
 ```
 
 ### 各モジュールの役割
@@ -102,7 +106,7 @@ GET /api/output/:session/:file
 | `js/renderer.js` | `WaveRenderer` クラス。Canvas 2D API でグリッド・軸・波形を描画。`pixelRatio: 2` で2x高解像度出力対応。論理座標↔ピクセルの変換は `toPixel()`/`toWorld()` |
 | `js/editor.js` | `WaveEditor` クラス。クリックした x 列を固定し、ドラッグで y 値を調整する UX。`activeX` プロパティで列ロック |
 | `js/problems.js` | `ProblemGenerator` クラス。Type1〜7 の設問・解答 Canvas を生成。出力は常に `pixelRatio: 2`（1160×400px → `style.width: 580px` で表示） |
-| `js/exporter.js` | `Exporter` 静的クラス。`downloadCanvasPNG`・`generatePDF`（jsPDF）・`generateZIP`（JSZip）・`shuffleChoicesWithSeed`・PDFの選択肢2列タイル描画 |
+| `js/exporter.js` | `Exporter` 静的クラス。`downloadCanvasPNG`・`generatePDF`（jsPDF）・`generateDOCX`（docx）・`generateZIP`（JSZip）・`shuffleChoicesWithSeed`・PDFの選択肢2列タイル描画。`generatePDF`/`generateDOCX` は `{returnBlob:true}` で Blob を返し、ZIP 一括ダウンロード（`exportZIP`）が PDF/DOCX を内包する仕組み |
 | `js/styles.js` | `STYLE_PRESETS` オブジェクト。`gray`（デフォルト・薄いグリッド）と `bw`（印刷用・濃いグリッド・破線）の2プリセット。各要素は `{ color, lineWidth, dashed, dashPattern }` |
 | `js/random.js` | `SeededRandom` オブジェクト。djb2 文字列ハッシュ・mulberry32 シード可能 PRNG・Fisher-Yates シード再現可能シャッフル |
 | `js/app.js` | `App` オブジェクト。UI状態（waveA/waveB/gridConfig/cellSize/choicesConfig/reflectionConfig/currentProblem）を管理。`DOMContentLoaded` で `App.init()` が呼ばれる |
@@ -113,14 +117,15 @@ REST API バックエンド専用。`api_server.js` から require される。
 
 | ファイル | 役割 |
 |----------|------|
-| `api/bridge.js` | `Bridge` クラス。Node.js `vm` モジュールで `js/` 全ファイルをサンドボックス実行し、`generate()` で ProblemGenerator を呼び出す |
+| `api/bridge.js` | `Bridge` クラス。Node.js `vm` モジュールで `js/` 全ファイルをサンドボックス実行する。**2系統のエントリ**: `generate()`（同期、PNG のみ、既存テストが直接呼ぶ）と `generateFull()`（非同期、DOCX / TXT / Bundle ZIP も生成、`api_server.js` のルートが呼ぶ） |
 | `api/validate.js` | Zod スキーマによるリクエストバリデーション。頂点・グリッド・cellSize・選択肢・タイプ別パラメータを検証 |
 | `api/translate.js` | API 仕様をブラウザ側の状態形式に変換。`buildState()` → `callGenerator()` → 選択肢/シード付与 |
-| `api/serialize.js` | Canvas を PNG Buffer に変換し JSON レスポンスを構築。`newSessionId()` でセッションごとにファイルを分離 |
+| `api/serialize.js` | Canvas を PNG Buffer に変換しレスポンスを構築。**`buildResponse`（sync、PNG のみ）と `buildResponseFull`（async、DOCX/TXT/Bundle ZIP 追加）に分離**。共通コアは `_buildCore`、追加処理は `_addExtraFiles` |
+| `api/docx-writer.js` | `docx` npm パッケージで Word 文書 Buffer を生成。テキストはネイティブ `TextRun`、Canvas は `canvas.toBuffer('image/png')` から `ImageRun` で埋め込む。refCanvases がある場合は `answerCanvases.slice(0, 1)` で重複を回避 |
 | `api/sandbox-stubs.js` | Node.js 環境で `document.createElement('canvas')` を node-canvas に差し替えるスタブ |
 | `api/loader.js` | `js/` ファイルを読み込んで vm コンテキストで評価し、クラスをサンドボックスにグローバル公開 |
 | `api/schema.json` | `/api/schema` エンドポイントが返す自己記述仕様（全タイプ・パラメータ・サンプル） |
-| `api/examples/` | `type1.json`〜`type7.json`。curl テストや動作確認用のサンプルリクエスト |
+| `api/examples/` | curl テスト・動作確認用のサンプルリクエスト（type1〜7・正弦波バリエーション・選択肢付き・反射波） |
 
 ### 設問タイプ
 
@@ -150,6 +155,19 @@ REST API バックエンド専用。`api_server.js` から require される。
 
 **PDF 内の日本語テキスト**
 jsPDF はフォント埋め込みが複雑なため、`Exporter._textCanvas()` でテキストを Canvas に描画してから PNG として埋め込む方式を採用している。
+
+**DOCX 内のテキスト**
+`docx` ライブラリは Unicode をネイティブにサポートするため、PDF と異なり日本語をそのまま `TextRun` として出力する。**テキストはそのまま編集可能**（教員が Word で問題文を微調整可能）。Canvas は `canvas.toDataURL` → `Uint8Array`（ブラウザ側 `_canvasToUint8Array`）または `canvas.toBuffer('image/png')`（Node.js 側）で `ImageRun` に渡す。画像サイズは `pixelRatio=2` を考慮して `canvas.width / 2` を `transformation.width`（ピクセル＝96DPI）として指定。
+
+**docx CDN は UMD 限定**
+`https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js` を使う。`/build/index.js` は **存在しない**（404）ので注意。グローバルは `window.docx` に展開される。
+
+**ZIP 一括ダウンロード（ブラウザ）と Bundle ZIP（API）**
+- ブラウザ `App.exportZIP()`: 問題 PDF + 解答 PDF + DOCX + 全画像 PNG + question/answer/commentary TXT を 1 つの ZIP（`wave_all.zip`）にまとめる。`generatePDF`/`generateDOCX` を `{returnBlob:true, silent:true}` で呼んで Blob を取得し、JSZip に追加。ライブラリ未ロード時は `confirm()` でユーザーに通知してスキップ続行可能
+- API `buildResponseFull` → `_addExtraFiles`: PNG + DOCX + TXT を Bundle ZIP（`{prefix}_bundle.zip`）にまとめる。**PDF は API 側では生成しない**（jsPDF はブラウザ専用のため）
+
+**refCanvases と answerCanvases の重複対策**
+Type3/6 では `answerCanvases` の先頭以外と `refCanvases` の中身が重複する場合がある（同一 Canvas）。ZIP 出力時は `hasRef ? answerCanvases.slice(0, 1) : answerCanvases` で先頭1枚のみ採用し、残りは `ref_*.png` として配置する。DOCX も同様に `mainAnswerCanvases` を【解答】に、`refCanvases` を【解説】に分けて表示。
 
 **Type 3 の解説セクション**
 `ProblemGenerator.generateType3()` は `result.refCanvases` に y-x スナップショット列を返す。`App._renderProblemOutput()` がこれを検出して【解説】セクションを追加レンダリングする。他の Type には `refCanvases` がない。
