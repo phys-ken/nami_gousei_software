@@ -47,9 +47,16 @@
       "supportsChoices": false
     },
     "3": {
-      "name": "y-t graph at specific x location",
+      "name": "y-t graph at specific x location (single, superposition, or reflection mode)",
       "params": ["x", "tMax"],
-      "waveB": false,
+      "optionalParams": ["boundary", "endType"],
+      "waveB": "optional — when provided, generates superposition y-t graph (mode: 'superposition')",
+      "reflectionMode": "when params.boundary and params.endType are provided (and no waveB), generates reflected-wave y-t graph (mode: 'reflection'). endType: 'fixed' | 'free'",
+      "modes": {
+        "single": "only waveA; standard y-t graph of incident wave at x",
+        "superposition": "waveA + waveB; y-t graph shows composite displacement at x",
+        "reflection": "waveA reflects at params.boundary; y-t graph shows incident+reflected composite at x"
+      },
       "supportsChoices": true,
       "distractor-shape": "Wave with vertices in (t,y) space; rendered statically (no propagation). Or set sineMode=true for a sine distractor (wavelength acts as period)."
     },

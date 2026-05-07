@@ -824,7 +824,14 @@ const App = {
       const x    = parseFloat(document.getElementById('p3-x').value);
       const tMax = parseInt(document.getElementById('p3-tMax').value, 10);
       if (isNaN(x) || isNaN(tMax) || tMax < 1) return null;
-      return gen.renderType3CorrectCanvas(this._activeWaveA(), x, tMax);
+      const opts3 = {};
+      if (this.hasWaveB && !this._activeWaveB().isEmpty()) {
+        opts3.waveB = this._activeWaveB();
+      } else if (this.reflectionConfig.enabled) {
+        opts3.boundary = this.reflectionConfig.boundary;
+        opts3.endType  = this.reflectionConfig.endType;
+      }
+      return gen.renderType3CorrectCanvas(this._activeWaveA(), x, tMax, opts3);
     } else if (type === 'type4') {
       if (!this.hasWaveB) return null;
       if (this._activeWaveA().isEmpty() || this._activeWaveB().isEmpty()) return null;
@@ -1117,8 +1124,8 @@ const App = {
   /**
    * タイプ選択肢の disabled 状態を一括更新（モード変更時に呼ぶ）
    * ・通常モード: type1/2/3 有効、type4/5/6/7 無効
-   * ・波Bモード: type4/5 有効、type1/2/3/6/7 無効
-   * ・反射波モード: type6/7 有効、type1/2/3/4/5 無効
+   * ・波Bモード: type3/4/5 有効、type1/2/6/7 無効（type3は合成波y-tとして動作）
+   * ・反射波モード: type3/6/7 有効、type1/2/4/5 無効（type3は反射合成y-tとして動作）
    */
   _updateProblemTypeGating() {
     const hasWaveB   = this.hasWaveB;
@@ -1130,7 +1137,7 @@ const App = {
     };
     setDisabled('optType1', hasWaveB || reflActive);
     setDisabled('optType2', hasWaveB || reflActive);
-    setDisabled('optType3', hasWaveB || reflActive);
+    setDisabled('optType3', false); // 常に有効（モードに応じて合成波y-tとして動作）
     setDisabled('optType4', !hasWaveB);
     setDisabled('optType5', !hasWaveB);
     setDisabled('optType6', !reflActive);
@@ -1139,11 +1146,11 @@ const App = {
     // 現在選択中のタイプが使えなくなる場合は適切なタイプへ切り替える
     const cur = document.getElementById('problemType').value;
     const unavailable =
-      ((!hasWaveB && !reflActive) && (cur === 'type4' || cur === 'type5')) ||
       (!hasWaveB && (cur === 'type4' || cur === 'type5')) ||
       (!reflActive && (cur === 'type6' || cur === 'type7')) ||
-      ((hasWaveB || reflActive) && (cur === 'type1' || cur === 'type2' || cur === 'type3'));
+      ((hasWaveB || reflActive) && (cur === 'type1' || cur === 'type2'));
     if (unavailable) {
+      // type3 は常に選択可能なのでデフォルト遷移先として使用
       const newType = reflActive ? 'type6' : (hasWaveB ? 'type4' : 'type1');
       document.getElementById('problemType').value = newType;
       this._updateProblemTypeParams();
@@ -1489,7 +1496,18 @@ const App = {
       } else if (type === 'type3') {
         const x    = _float('p3-x', 3);
         const tMax = _int('p3-tMax', 5);
-        result = generator.generateType3({ wave: this._activeWaveA(), x, tMax });
+        const params3 = { wave: this._activeWaveA(), x, tMax };
+        // モード別パラメータ追加（合成波 or 反射波）
+        if (this.hasWaveB && !this._activeWaveB().isEmpty()) {
+          params3.waveB = this._activeWaveB();
+        } else if (this.reflectionConfig.enabled) {
+          params3.boundary = this.reflectionConfig.boundary;
+          params3.endType  = this.reflectionConfig.endType;
+        }
+        result = generator.generateType3(params3);
+        if (result.xOutsideMediumWarning) {
+          console.warn(`Type3: x = ${x} は媒質の外です。合成変位の計算外となります。`);
+        }
       } else if (type === 'type4') {
         if (!this.hasWaveB || this._activeWaveB().isEmpty()) {
           alert('Type 4 には波Bの波形が必要です。');
