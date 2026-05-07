@@ -59,6 +59,17 @@ class Exporter {
   }
 
   /**
+   * Canvas の PNG データを Uint8Array に変換（docx の ImageRun 用）
+   */
+  static _canvasToUint8Array(canvas) {
+    const b64 = canvas.toDataURL('image/png').split(',')[1];
+    const bin = atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return arr;
+  }
+
+  /**
    * Canvas を PNG としてダウンロード
    */
   static downloadCanvasPNG(canvas, filename) {
@@ -78,10 +89,10 @@ class Exporter {
    * @param {Array} sections - [{ label, text, canvases, note }]
    * @param {string} filename - ダウンロードファイル名
    */
-  static async generatePDF(title, sections, filename) {
+  static async generatePDF(title, sections, filename, { returnBlob = false, silent = false } = {}) {
     if (!window.jspdf) {
-      alert('jsPDF ライブラリが読み込まれていません。インターネット接続を確認してください。');
-      return;
+      if (!silent) alert('jsPDF ライブラリが読み込まれていません。インターネット接続を確認してください。');
+      return null;
     }
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -169,7 +180,9 @@ class Exporter {
       curY += 4;
     }
 
+    if (returnBlob) return doc.output('blob');
     doc.save(filename || 'wave.pdf');
+    return null;
   }
 
   /**
@@ -243,12 +256,112 @@ class Exporter {
   }
 
   /**
+   * 問題・解答・解説をまとめた Word 文書（.docx）を生成
+   *
+   * @param {Array}       sections - [{ label, text, canvases, choices, note }]
+   *   choices は [{canvas, label, isCorrect, showCorrect}] の配列（_buildPdfChoices の返り値と同形式）
+   * @param {string|null} filename - null の場合はダウンロードせず Blob を返す
+   * @param {Object}      opts     - { silent: false }
+   * @returns {Promise<Blob|null>}
+   */
+  static async generateDOCX(sections, filename, { silent = false } = {}) {
+    if (!window.docx) {
+      if (!silent) alert('docx ライブラリが読み込まれていません。インターネット接続を確認してください。');
+      return null;
+    }
+    const { Document, Packer, Paragraph, TextRun, ImageRun } = window.docx;
+
+    const children = [];
+
+    for (const section of sections) {
+      // セクションラベル（太字見出し）
+      if (section.label) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: section.label, bold: true, size: 28 })],
+          spacing: { before: 320, after: 160 },
+        }));
+      }
+
+      // テキスト本文（\n で段落分割、ネイティブ文字列で日本語も正しく表示）
+      if (section.text) {
+        for (const line of section.text.split('\n')) {
+          children.push(new Paragraph({
+            children: [new TextRun({ text: line || ' ', size: 22 })],
+            spacing: { after: 60 },
+          }));
+        }
+      }
+
+      // Canvas 波形画像（pixelRatio=2 の論理サイズに変換して埋め込み）
+      if (section.canvases?.length) {
+        for (const canvas of section.canvases) {
+          const data = Exporter._canvasToUint8Array(canvas);
+          const w = Math.round(canvas.width / 2);
+          const h = Math.round(canvas.height / 2);
+          children.push(new Paragraph({
+            children: [new ImageRun({ data, transformation: { width: w, height: h }, type: 'png' })],
+            spacing: { before: 80, after: 80 },
+          }));
+        }
+      }
+
+      // 選択肢（_buildPdfChoices と同形式: [{canvas, label, isCorrect, showCorrect}]）
+      if (section.choices?.length) {
+        for (const item of section.choices) {
+          const labelText = (item.showCorrect && item.isCorrect)
+            ? `${item.label}  ★正答`
+            : item.label;
+          children.push(new Paragraph({
+            children: [new TextRun({ text: labelText, bold: true, size: 22 })],
+            spacing: { before: 120, after: 40 },
+          }));
+          const data = Exporter._canvasToUint8Array(item.canvas);
+          const w = Math.round(item.canvas.width / 2);
+          const h = Math.round(item.canvas.height / 2);
+          children.push(new Paragraph({
+            children: [new ImageRun({ data, transformation: { width: w, height: h }, type: 'png' })],
+            spacing: { after: 60 },
+          }));
+        }
+      }
+
+      // 補足ノート
+      if (section.note) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: section.note, size: 18, italics: true })],
+          spacing: { before: 80, after: 80 },
+        }));
+      }
+    }
+
+    const doc = new Document({
+      creator: '波の合成 問題作成ツール',
+      sections: [{ children }],
+    });
+
+    const blob = await Packer.toBlob(doc);
+
+    if (filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }
+    return blob;
+  }
+
+  /**
    * 複数の Canvas を ZIP にまとめてダウンロード
    *
-   * @param {Object} imageMap - { 'filename.png': Canvas, ... }
-   * @param {string} filename - ZIPファイル名
+   * @param {Object} imageMap   - { 'filename.png': Canvas, ... }
+   * @param {string} filename   - ZIPファイル名
+   * @param {Object} extraFiles - { 'filename.pdf': Blob, 'file.txt': string, ... }
    */
-  static async generateZIP(imageMap, filename) {
+  static async generateZIP(imageMap, filename, extraFiles = {}) {
     if (!window.JSZip) {
       alert('JSZip ライブラリが読み込まれていません。インターネット接続を確認してください。');
       return;
@@ -258,6 +371,9 @@ class Exporter {
       const dataURL = canvas.toDataURL('image/png');
       const base64  = dataURL.split(',')[1];
       zip.file(name, base64, { base64: true });
+    }
+    for (const [name, content] of Object.entries(extraFiles)) {
+      zip.file(name, content);
     }
     const blob = await zip.generateAsync({ type: 'blob' });
     const link = document.createElement('a');

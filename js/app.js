@@ -1771,6 +1771,33 @@ const App = {
     }));
   },
 
+  async exportDOCX() {
+    if (!this.currentProblem) return;
+    const r = this.currentProblem;
+    const mainAnswerCanvases = r.refCanvases?.length
+      ? r.answerCanvases.slice(0, 1)
+      : r.answerCanvases;
+
+    const sections = [
+      { label: '【問題】', text: r.questionText, canvases: r.questionCanvases },
+    ];
+    if (r.choices) {
+      sections.push({ label: '【選択肢】', choices: this._buildPdfChoices(r.choices, false) });
+      const { correctNewIndex } = Exporter.shuffleChoicesWithSeed(r.choices.items, r.choices.seed);
+      sections.push({ label: '【解答】', text: `正答: 選択肢 ${this._numToCircled(correctNewIndex + 1)}` });
+    } else {
+      sections.push({ label: '【解答】', text: r.answerText, canvases: mainAnswerCanvases });
+    }
+    if (r.refCanvases?.length) {
+      sections.push({
+        label: r.refSectionTitle || '【解説】',
+        text:  r.refSectionNote  || '',
+        canvases: r.refCanvases,
+      });
+    }
+    await Exporter.generateDOCX(sections, 'wave_problem.docx');
+  },
+
   async exportProblemPDF() {
     if (!this.currentProblem) return;
     const r = this.currentProblem;
@@ -1804,18 +1831,109 @@ const App = {
   async exportZIP() {
     if (!this.currentProblem) return;
     const r = this.currentProblem;
+
+    // 未ロードのライブラリをまとめて通知
+    const missing = [];
+    if (!window.jspdf)  missing.push('jsPDF（PDF生成）');
+    if (!window.docx)   missing.push('docx（Word文書生成）');
+    if (missing.length) {
+      const ok = confirm(
+        `以下のライブラリが読み込まれていないため、ZIPに含まれません:\n${missing.join('\n')}\n\n続行しますか？`
+      );
+      if (!ok) return;
+    }
+
+    // ── 画像収集 ─────────────────────────────────────────────────────
+    const mainAnswerCanvases = r.refCanvases?.length
+      ? r.answerCanvases.slice(0, 1)
+      : r.answerCanvases;
+
     const images = {};
-    r.questionCanvases.forEach((c, i) => { images[`question_${i + 1}.png`] = c; });
-    r.answerCanvases.forEach((c, i)   => { images[`answer_${i + 1}.png`]   = c; });
+    r.questionCanvases.forEach((c, i)    => { images[`question_${i + 1}.png`] = c; });
+    mainAnswerCanvases.forEach((c, i)    => { images[`answer_${i + 1}.png`]   = c; });
+    r.refCanvases?.forEach((c, i)        => { images[`ref_${i + 1}.png`]      = c; });
     if (r.choices) {
       const { shuffled, correctNewIndex } = Exporter.shuffleChoicesWithSeed(r.choices.items, r.choices.seed);
       shuffled.forEach((item, i) => {
-        const num = i + 1;
         const tag = (i === correctNewIndex) ? '_correct' : '';
-        images[`choice_${num}${tag}.png`] = item.canvas;
+        images[`choice_${i + 1}${tag}.png`] = item.canvas;
       });
     }
-    await Exporter.generateZIP(images, 'wave_images.zip');
+
+    // ── テキストファイル ───────────────────────────────────────────
+    const extraFiles = {};
+    extraFiles['question.txt'] = r.questionText || '';
+
+    let answerTxt = r.answerText || '';
+    if (r.choices) {
+      const { correctNewIndex } = Exporter.shuffleChoicesWithSeed(r.choices.items, r.choices.seed);
+      const ans = `正答: 選択肢 ${this._numToCircled(correctNewIndex + 1)}`;
+      answerTxt = r.answerText ? `${ans}\n${r.answerText}` : ans;
+    }
+    extraFiles['answer.txt'] = answerTxt;
+
+    if (r.refSectionTitle || r.refSectionNote) {
+      const lines = [];
+      if (r.refSectionTitle) lines.push(r.refSectionTitle);
+      if (r.refSectionNote)  lines.push(r.refSectionNote);
+      extraFiles['commentary.txt'] = lines.join('\n');
+    }
+
+    // ── PDF 生成（Blob として返す） ───────────────────────────────
+    const problemPdfSections = [
+      { label: '問題', text: r.questionText, canvases: r.questionCanvases },
+    ];
+    if (r.choices) {
+      problemPdfSections.push({ label: '選択肢', choices: this._buildPdfChoices(r.choices, false) });
+    }
+
+    const answerPdfSections = [
+      { label: '問題', text: r.questionText, canvases: r.questionCanvases },
+    ];
+    if (r.choices) {
+      answerPdfSections.push({ label: '選択肢（正答マーク付き）', choices: this._buildPdfChoices(r.choices, true) });
+      const { correctNewIndex } = Exporter.shuffleChoicesWithSeed(r.choices.items, r.choices.seed);
+      answerPdfSections.push({ label: '解答', text: `正答: 選択肢 ${this._numToCircled(correctNewIndex + 1)}` });
+    } else {
+      answerPdfSections.push({ label: '解答', text: r.answerText, canvases: mainAnswerCanvases });
+    }
+    if (r.refCanvases?.length) {
+      answerPdfSections.push({
+        label:   r.refSectionTitle || '解説',
+        text:    r.refSectionNote  || '',
+        canvases: r.refCanvases,
+      });
+    }
+
+    const [problemPdfBlob, answerPdfBlob] = await Promise.all([
+      Exporter.generatePDF('波の重ね合わせ 問題', problemPdfSections, null, { returnBlob: true, silent: true }),
+      Exporter.generatePDF('波の重ね合わせ 解答', answerPdfSections, null, { returnBlob: true, silent: true }),
+    ]);
+    if (problemPdfBlob) extraFiles['wave_question.pdf'] = problemPdfBlob;
+    if (answerPdfBlob)  extraFiles['wave_answer.pdf']   = answerPdfBlob;
+
+    // ── DOCX 生成（Blob として返す） ─────────────────────────────
+    const docxSections = [
+      { label: '【問題】', text: r.questionText, canvases: r.questionCanvases },
+    ];
+    if (r.choices) {
+      docxSections.push({ label: '【選択肢】', choices: this._buildPdfChoices(r.choices, false) });
+      const { correctNewIndex } = Exporter.shuffleChoicesWithSeed(r.choices.items, r.choices.seed);
+      docxSections.push({ label: '【解答】', text: `正答: 選択肢 ${this._numToCircled(correctNewIndex + 1)}` });
+    } else {
+      docxSections.push({ label: '【解答】', text: r.answerText, canvases: mainAnswerCanvases });
+    }
+    if (r.refCanvases?.length) {
+      docxSections.push({
+        label:    r.refSectionTitle || '【解説】',
+        text:     r.refSectionNote  || '',
+        canvases: r.refCanvases,
+      });
+    }
+    const docxBlob = await Exporter.generateDOCX(docxSections, null, { silent: true });
+    if (docxBlob) extraFiles['wave_problem.docx'] = docxBlob;
+
+    await Exporter.generateZIP(images, 'wave_all.zip', extraFiles);
   },
 };
 

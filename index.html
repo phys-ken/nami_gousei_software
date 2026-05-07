@@ -495,7 +495,8 @@
           <span>出力：</span>
           <button class="export-btn"           onclick="App.exportProblemPDF()">問題 PDF</button>
           <button class="export-btn secondary"  onclick="App.exportAnswerPDF()">解答 PDF</button>
-          <button class="export-btn secondary"  onclick="App.exportZIP()">画像 ZIP</button>
+          <button class="export-btn secondary"  onclick="App.exportDOCX()">DOCX</button>
+          <button class="export-btn secondary"  onclick="App.exportZIP()">ZIP 一括</button>
         </div>
 
       </div>
@@ -508,6 +509,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
         crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+        crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js"
         crossorigin="anonymous"></script>
 
 <!-- アプリスクリプト -->

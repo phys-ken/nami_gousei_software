@@ -57,7 +57,7 @@ apiApp.get('/api/schema', (_req, res) => {
   res.json(schema);
 });
 
-apiApp.post('/api/generate', (req, res) => {
+apiApp.post('/api/generate', async (req, res) => {
   const parsed = validateRequest(req.body);
   if (!parsed.success) {
     return res.status(400).json({
@@ -66,7 +66,7 @@ apiApp.post('/api/generate', (req, res) => {
     });
   }
   try {
-    const response = bridge.generate(parsed.data);
+    const response = await bridge.generateFull(parsed.data);
     res.json(response);
   } catch (e) {
     console.error('[/api/generate] error:', e);
@@ -79,7 +79,8 @@ apiApp.post('/api/generate', (req, res) => {
 
 apiApp.get('/api/output/:session/:file', (req, res) => {
   const { session, file } = req.params;
-  if (!/^[\w.\-]+$/.test(session) || !/^[\w.\-]+\.png$/.test(file)) {
+  // 許可する拡張子: png / pdf / docx / txt / zip / json
+  if (!/^[\w.\-]+$/.test(session) || !/^[\w\-]+\.(png|pdf|docx|txt|zip|json)$/.test(file)) {
     return res.status(400).json({ success: false, error: { code: 'BAD_PATH', message: 'invalid path component' } });
   }
   const p = path.join(OUTPUT_ROOT, session, file);
