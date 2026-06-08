@@ -40,3 +40,6 @@ tests/output/
 # 開発用の旧ファイル・サンプルコード（ローカルのみ保持）
 old_files/
 sample_codes/
+
+# Antigravity AI CLI（ローカル設定・キャッシュ）
+.antigravitycli/

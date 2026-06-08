@@ -61,6 +61,19 @@
       </details>
 
       <p class="apply-hint">軸範囲・1目盛りサイズをCanvasに反映します</p>
+
+      <!-- 詳細設定（波形のみモード） -->
+      <details class="cell-size-details">
+        <summary>詳細設定</summary>
+        <div class="setting-row wave-only-row">
+          <label class="wave-only-label">
+            <input type="checkbox" id="waveOnlyMode">
+            波形のみを表示（グリッド・軸なし）
+          </label>
+        </div>
+        <p class="cell-size-hint">チェックすると背景グリッド・軸線・ラベルをすべて非表示にし、波形曲線のみを出力します。授業プリントへの図の貼り付けに便利です。</p>
+      </details>
+
       <div class="btn-row">
         <button class="btn-primary" onclick="App.applyGridConfig()">グリッドを適用</button>
       </div>

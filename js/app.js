@@ -10,6 +10,7 @@ const App = {
   editorB: null,
   gridConfig: { xMin: 0, xMax: 10, yMin: -2, yMax: 2 },
   cellSize: { w: null, h: null }, // null=自動（580×200 デフォルト）
+  waveOnly: false,               // true のときはグリッド・軸・ラベルを全て非表示
   styleConfig: null,         // 現在アクティブな描画スタイル設定
   _customStyleConfig: null,  // カスタム設定を独立保持（プリセット切替でも消えない）
   styleMode: 'gray',         // 'gray' | 'bw' | 'custom'
@@ -246,6 +247,7 @@ const App = {
     } : {};
     const renderer = new WaveRenderer(canvas, Object.assign({}, this.gridConfig, {
       gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
+      waveOnly:  this.waveOnly,
     }, extra));
     renderer.clear();
     renderer.drawGrid();
@@ -267,6 +269,13 @@ const App = {
     this.waveB = new Wave();
     this.waveB.label = 'B';
     this.waveB.direction = -1; // デフォルトは左向き
+
+    // waveOnly を localStorage から復元
+    try {
+      this.waveOnly = localStorage.getItem('waveapp_waveOnly') === '1';
+    } catch (_) {
+      this.waveOnly = false;
+    }
 
     this._loadStyleConfig();
     this._loadCellSize();
@@ -297,6 +306,8 @@ const App = {
     document.getElementById('xMax').value = this.gridConfig.xMax;
     document.getElementById('yMin').value = this.gridConfig.yMin;
     document.getElementById('yMax').value = this.gridConfig.yMax;
+    const waveOnlyEl = document.getElementById('waveOnlyMode');
+    if (waveOnlyEl) waveOnlyEl.checked = !!this.waveOnly;
   },
 
   applyGridConfig() {
@@ -316,6 +327,12 @@ const App = {
 
     this.gridConfig = { xMin, xMax, yMin, yMax };
     this.cellSize   = newCellSize;
+
+    // 波形のみモードの反映
+    const waveOnlyEl = document.getElementById('waveOnlyMode');
+    this.waveOnly = waveOnlyEl ? waveOnlyEl.checked : false;
+    try { localStorage.setItem('waveapp_waveOnly', this.waveOnly ? '1' : '0'); } catch (_) {}
+
     this._saveCellSize();
     this._setupEditorA();
     if (this.hasWaveB) this._setupEditorB();
@@ -801,10 +818,16 @@ const App = {
 
     const renderer = new WaveRenderer(canvas, Object.assign({}, gridCfg, {
       gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
+      waveOnly:  this.waveOnly,
     }));
     renderer.clear();
     renderer.drawGrid();
-    renderer.drawAxes();
+    // type3 の y-t グラフは横軸ラベルを t [s] にする
+    if (type === 'type3') {
+      renderer.drawAxes({ xLabel: 't [s]', yLabel: 'y [cm]' });
+    } else {
+      renderer.drawAxes();
+    }
 
     const pts   = sw.getSnapshot(gridCfg.xMin, gridCfg.xMax, 0);
     const style = this.styleConfig ? this.styleConfig.waveSingle : {};
@@ -817,6 +840,7 @@ const App = {
       gridConfig:  this.gridConfig,
       styleConfig: this.styleConfig,
       cellSize:    this.cellSize,
+      waveOnly:    this.waveOnly,
     });
 
     if (type === 'type3') {
@@ -872,8 +896,13 @@ const App = {
   /** distractor エディタ用 Renderer（pixelRatio=1） */
   _buildDistractorRenderer(type, canvas) {
     const cfg = this._distractorGridConfig(type);
-    return new WaveRenderer(canvas, Object.assign({}, cfg, {
+    // type3 は y-t グラフ → 横軸ラベルを t [s] にする（バグ修正）
+    const labelOverride = type === 'type3'
+      ? { xLabel: 't [s]', yLabel: 'y [cm]' }
+      : {};
+    return new WaveRenderer(canvas, Object.assign({}, cfg, labelOverride, {
       gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
+      waveOnly:  this.waveOnly,
     }));
   },
 
@@ -1050,6 +1079,7 @@ const App = {
     } : {};
     const renderer = new WaveRenderer(canvas, Object.assign({}, this.gridConfig, {
       gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
+      waveOnly:  this.waveOnly,
     }, extra));
     if (this.editorA) {
       // グリッド設定変更時: レンダラだけ差し替えて再描画（DOM 操作不要）
@@ -1071,6 +1101,7 @@ const App = {
     }
     const renderer = new WaveRenderer(canvas, Object.assign({}, this.gridConfig, {
       gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
+      waveOnly:  this.waveOnly,
     }));
     if (this.editorB) {
       this.editorB.renderer = renderer;
@@ -1478,6 +1509,7 @@ const App = {
       gridConfig:  this.gridConfig,
       styleConfig: this.styleConfig,
       cellSize:    this.cellSize,
+      waveOnly:    this.waveOnly,
       hasChoices,
     });
 

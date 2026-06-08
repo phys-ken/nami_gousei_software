@@ -98,6 +98,8 @@ class WaveRenderer {
   }
 
   drawGrid() {
+    // waveOnly モードではグリッドを描画しない
+    if (this.config.waveOnly) return;
     const ctx = this.ctx;
     const c   = this.config;
     // gridStyle が未指定のときは gray プリセット相当をフォールバック
@@ -128,10 +130,12 @@ class WaveRenderer {
    * @param {Object} options { xLabel, yLabel }
    */
   drawAxes(options = {}) {
+    // waveOnly モードでは軸・ラベル・目盛りを描画しない
+    if (this.config.waveOnly) return;
     const ctx    = this.ctx;
     const c      = this.config;
-    const xLabel = options.xLabel || 'x [cm]';
-    const yLabel = options.yLabel || 'y [cm]';
+    const xLabel = options.xLabel || c.xLabel || 'x [cm]';
+    const yLabel = options.yLabel || c.yLabel || 'y [cm]';
 
     ctx.save();
     ctx.strokeStyle = '#000000';

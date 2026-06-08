@@ -51,7 +51,11 @@ class ProblemGenerator {
         {},
         this.state.gridConfig,
         configOverride,
-        { pixelRatio: this.PR, gridStyle: sc ? sc.grid : undefined }
+        {
+          pixelRatio: this.PR,
+          gridStyle:  sc ? sc.grid : undefined,
+          waveOnly:   !!this.state.waveOnly,
+        }
       )
     );
   }
