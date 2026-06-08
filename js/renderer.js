@@ -130,10 +130,26 @@ class WaveRenderer {
    * @param {Object} options { xLabel, yLabel }
    */
   drawAxes(options = {}) {
-    // waveOnly モードでは軸・ラベル・目盛りを描画しない
-    if (this.config.waveOnly) return;
     const ctx    = this.ctx;
     const c      = this.config;
+    // waveOnly モードでは軸・ラベル・目盛りを描画しない（keepZeroLine が有効な場合は y=0 の直線のみ描画）
+    if (c.waveOnly) {
+      if (c.keepZeroLine) {
+        ctx.save();
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth   = 2;
+        ctx.setLineDash([]);
+        const { px: xLeft }   = this.toPixel(c.xMin, 0);
+        const { px: xRight }  = this.toPixel(c.xMax, 0);
+        const { py: yAxis }   = this.toPixel(0, 0);
+        ctx.beginPath();
+        ctx.moveTo(xLeft, yAxis);
+        ctx.lineTo(xRight, yAxis);
+        ctx.stroke();
+        ctx.restore();
+      }
+      return;
+    }
     const xLabel = options.xLabel || c.xLabel || 'x [cm]';
     const yLabel = options.yLabel || c.yLabel || 'y [cm]';
 

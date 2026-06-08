@@ -55,6 +55,7 @@ class ProblemGenerator {
           pixelRatio: this.PR,
           gridStyle:  sc ? sc.grid : undefined,
           waveOnly:   !!this.state.waveOnly,
+          keepZeroLine: !!this.state.keepZeroLine,
         }
       )
     );

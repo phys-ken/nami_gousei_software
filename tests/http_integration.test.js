@@ -474,6 +474,16 @@ describe('POST /api/generate — オプション系', () => {
     });
     assert.equal(body.success, true);
   });
+
+  it('waveOnly=true かつ keepZeroLine=true でも success: true', async () => {
+    const { body } = await apiPost({
+      ...EX.type1,
+      waveOnly: true,
+      keepZeroLine: true,
+      filenamePrefix: 'http_keepzeroline',
+    });
+    assert.equal(body.success, true);
+  });
 });
 
 // ══════════════════════════════════════════════════════════════════════

@@ -24,6 +24,7 @@ function buildState(spec, sandbox) {
     cellSize: spec.cellSize || { w: null, h: null },
     hasChoices: !!(spec.choices && spec.choices.enabled),
     waveOnly: !!spec.waveOnly,
+    keepZeroLine: !!spec.keepZeroLine,
   };
 }
 

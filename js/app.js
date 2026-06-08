@@ -11,6 +11,7 @@ const App = {
   gridConfig: { xMin: 0, xMax: 10, yMin: -2, yMax: 2 },
   cellSize: { w: null, h: null }, // null=自動（580×200 デフォルト）
   waveOnly: false,               // true のときはグリッド・軸・ラベルを全て非表示
+  keepZeroLine: false,           // waveOnly=true のとき、y=0 の横軸だけを残すか
   styleConfig: null,         // 現在アクティブな描画スタイル設定
   _customStyleConfig: null,  // カスタム設定を独立保持（プリセット切替でも消えない）
   styleMode: 'gray',         // 'gray' | 'bw' | 'custom'
@@ -248,6 +249,7 @@ const App = {
     const renderer = new WaveRenderer(canvas, Object.assign({}, this.gridConfig, {
       gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
       waveOnly:  this.waveOnly,
+      keepZeroLine: this.keepZeroLine,
     }, extra));
     renderer.clear();
     renderer.drawGrid();
@@ -270,11 +272,13 @@ const App = {
     this.waveB.label = 'B';
     this.waveB.direction = -1; // デフォルトは左向き
 
-    // waveOnly を localStorage から復元
+    // waveOnly, keepZeroLine を localStorage から復元
     try {
       this.waveOnly = localStorage.getItem('waveapp_waveOnly') === '1';
+      this.keepZeroLine = localStorage.getItem('waveapp_keepZeroLine') === '1';
     } catch (_) {
       this.waveOnly = false;
+      this.keepZeroLine = false;
     }
 
     this._loadStyleConfig();
@@ -308,6 +312,17 @@ const App = {
     document.getElementById('yMax').value = this.gridConfig.yMax;
     const waveOnlyEl = document.getElementById('waveOnlyMode');
     if (waveOnlyEl) waveOnlyEl.checked = !!this.waveOnly;
+    const keepZeroLineEl = document.getElementById('keepZeroLine');
+    if (keepZeroLineEl) keepZeroLineEl.checked = !!this.keepZeroLine;
+    this.toggleWaveOnlySubOptions();
+  },
+
+  toggleWaveOnlySubOptions() {
+    const waveOnlyEl = document.getElementById('waveOnlyMode');
+    const keepZeroLineRow = document.getElementById('keepZeroLineRow');
+    if (waveOnlyEl && keepZeroLineRow) {
+      keepZeroLineRow.style.display = waveOnlyEl.checked ? 'block' : 'none';
+    }
   },
 
   applyGridConfig() {
@@ -332,6 +347,10 @@ const App = {
     const waveOnlyEl = document.getElementById('waveOnlyMode');
     this.waveOnly = waveOnlyEl ? waveOnlyEl.checked : false;
     try { localStorage.setItem('waveapp_waveOnly', this.waveOnly ? '1' : '0'); } catch (_) {}
+
+    const keepZeroLineEl = document.getElementById('keepZeroLine');
+    this.keepZeroLine = keepZeroLineEl ? keepZeroLineEl.checked : false;
+    try { localStorage.setItem('waveapp_keepZeroLine', this.keepZeroLine ? '1' : '0'); } catch (_) {}
 
     this._saveCellSize();
     this._setupEditorA();
@@ -819,6 +838,7 @@ const App = {
     const renderer = new WaveRenderer(canvas, Object.assign({}, gridCfg, {
       gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
       waveOnly:  this.waveOnly,
+      keepZeroLine: this.keepZeroLine,
     }));
     renderer.clear();
     renderer.drawGrid();
@@ -841,6 +861,7 @@ const App = {
       styleConfig: this.styleConfig,
       cellSize:    this.cellSize,
       waveOnly:    this.waveOnly,
+      keepZeroLine: this.keepZeroLine,
     });
 
     if (type === 'type3') {
@@ -903,6 +924,7 @@ const App = {
     return new WaveRenderer(canvas, Object.assign({}, cfg, labelOverride, {
       gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
       waveOnly:  this.waveOnly,
+      keepZeroLine: this.keepZeroLine,
     }));
   },
 
@@ -1080,6 +1102,7 @@ const App = {
     const renderer = new WaveRenderer(canvas, Object.assign({}, this.gridConfig, {
       gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
       waveOnly:  this.waveOnly,
+      keepZeroLine: this.keepZeroLine,
     }, extra));
     if (this.editorA) {
       // グリッド設定変更時: レンダラだけ差し替えて再描画（DOM 操作不要）
@@ -1102,6 +1125,7 @@ const App = {
     const renderer = new WaveRenderer(canvas, Object.assign({}, this.gridConfig, {
       gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
       waveOnly:  this.waveOnly,
+      keepZeroLine: this.keepZeroLine,
     }));
     if (this.editorB) {
       this.editorB.renderer = renderer;
@@ -1388,6 +1412,8 @@ const App = {
         gridConfig:  this.gridConfig,
         styleConfig: this.styleConfig,
         cellSize:    this.cellSize,
+        waveOnly:    this.waveOnly,
+        keepZeroLine: this.keepZeroLine,
       });
       for (let t = 0; t <= tMax; t++) {
         const canvas = gen._renderReflectionCanvas(
@@ -1424,6 +1450,8 @@ const App = {
       const renderer = new WaveRenderer(canvas, Object.assign({}, this.gridConfig, {
         pixelRatio: PR,
         gridStyle: this.styleConfig ? this.styleConfig.grid : undefined,
+        waveOnly:  this.waveOnly,
+        keepZeroLine: this.keepZeroLine,
       }));
       renderer.renderFull(waves, t, { styles });
 
@@ -1510,6 +1538,7 @@ const App = {
       styleConfig: this.styleConfig,
       cellSize:    this.cellSize,
       waveOnly:    this.waveOnly,
+      keepZeroLine: this.keepZeroLine,
       hasChoices,
     });
 

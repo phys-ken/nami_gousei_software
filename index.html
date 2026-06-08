@@ -67,8 +67,14 @@
         <summary>詳細設定</summary>
         <div class="setting-row wave-only-row">
           <label class="wave-only-label">
-            <input type="checkbox" id="waveOnlyMode">
+            <input type="checkbox" id="waveOnlyMode" onchange="App.toggleWaveOnlySubOptions()">
             波形のみを表示（グリッド・軸なし）
+          </label>
+        </div>
+        <div class="setting-row wave-only-row" id="keepZeroLineRow" style="margin-left: 20px; display: none;">
+          <label class="wave-only-label">
+            <input type="checkbox" id="keepZeroLine">
+            横軸（y=0の直線）を残す
           </label>
         </div>
         <p class="cell-size-hint">チェックすると背景グリッド・軸線・ラベルをすべて非表示にし、波形曲線のみを出力します。授業プリントへの図の貼り付けに便利です。</p>

@@ -709,5 +709,16 @@ describe('waveOnly（波形のみ表示）モード', () => {
     assert.ok(r.success, r.error);
     assert.ok(Array.isArray(r.files.question) && r.files.question.length > 0);
   });
+
+  it('validateRequest で keepZeroLine: true/false を許容する', () => {
+    const r1 = validateRequest({ type: 1, waveA: WAVE_A_TRIANGLE, params: { answerT: 3 }, waveOnly: true, keepZeroLine: true });
+    assert.ok(r1.success);
+  });
+
+  it('Bridge.generate で keepZeroLine: true を渡して画像が正常生成される', () => {
+    const r = gen({ type: 1, waveA: WAVE_A_TRIANGLE, params: { answerT: 3 }, waveOnly: true, keepZeroLine: true }, 'keep_zeroline_test');
+    assert.ok(r.success, r.error);
+    assert.ok(Array.isArray(r.files.question) && r.files.question.length > 0);
+  });
 });
 

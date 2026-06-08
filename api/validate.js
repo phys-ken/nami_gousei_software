@@ -89,6 +89,7 @@ const GenerateRequest = z.object({
   filenamePrefix: z.string().max(64).optional(),
   inline: z.boolean().default(false),
   waveOnly: z.boolean().default(false).optional(),
+  keepZeroLine: z.boolean().default(false).optional(),
 }).superRefine((v, ctx) => {
   const t = v.type;
   const p = v.params || {};
