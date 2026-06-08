@@ -465,6 +465,15 @@ describe('POST /api/generate — オプション系', () => {
     });
     assert.equal(body.success, true);
   });
+
+  it('waveOnly=true でも success: true', async () => {
+    const { body } = await apiPost({
+      ...EX.type1,
+      waveOnly: true,
+      filenamePrefix: 'http_waveonly',
+    });
+    assert.equal(body.success, true);
+  });
 });
 
 // ══════════════════════════════════════════════════════════════════════

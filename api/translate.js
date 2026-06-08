@@ -23,6 +23,7 @@ function buildState(spec, sandbox) {
     styleConfig: resolveStyle(spec.style, sandbox.STYLE_PRESETS),
     cellSize: spec.cellSize || { w: null, h: null },
     hasChoices: !!(spec.choices && spec.choices.enabled),
+    waveOnly: !!spec.waveOnly,
   };
 }
 

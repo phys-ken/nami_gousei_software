@@ -690,3 +690,24 @@ describe('正弦波モード — Bridge.generate', () => {
     assert.ok(r.files.choices && r.files.choices.length === 4);
   });
 });
+
+describe('waveOnly（波形のみ表示）モード', () => {
+  before(() => {
+    bridge = new Bridge({ projectRoot: PROJECT_ROOT, defaultOutputDir: TMP_DIR });
+    bridge.init();
+  });
+
+  it('validateRequest で waveOnly: true/false を許容する', () => {
+    const r1 = validateRequest({ type: 1, waveA: WAVE_A_TRIANGLE, params: { answerT: 3 }, waveOnly: true });
+    assert.ok(r1.success);
+    const r2 = validateRequest({ type: 1, waveA: WAVE_A_TRIANGLE, params: { answerT: 3 }, waveOnly: false });
+    assert.ok(r2.success);
+  });
+
+  it('Bridge.generate で waveOnly: true を渡して画像が正常生成される', () => {
+    const r = gen({ type: 1, waveA: WAVE_A_TRIANGLE, params: { answerT: 3 }, waveOnly: true }, 'wave_only_test');
+    assert.ok(r.success, r.error);
+    assert.ok(Array.isArray(r.files.question) && r.files.question.length > 0);
+  });
+});
+
