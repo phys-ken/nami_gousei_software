@@ -27,12 +27,13 @@ const App = {
   // distractors[] には Wave インスタンスが入る（count - 1 個、正答は別途自動生成）
   // source は将来 'auto'（自動生成）を追加できるように布石
   choicesConfig: {
+    type1: { enabled: false, count: 4, source: 'manual', distractors: [] },
     type3: { enabled: false, count: 6, source: 'manual', distractors: [] },
     type4: { enabled: false, count: 6, source: 'manual', distractors: [] },
     type6: { enabled: false, count: 4, source: 'manual', distractors: [] },
   },
   // 選択肢エディタ用 WaveEditor インスタンスを保持（再生成時のクリーンアップ用）
-  _choiceEditors: { type3: [], type4: [], type6: [] },
+  _choiceEditors: { type1: [], type3: [], type4: [], type6: [] },
 
   // 反射波モード設定
   reflectionConfig: {
@@ -136,7 +137,7 @@ const App = {
 
     // wave A のモードが変わったら distractor の型と選択肢パネルも更新
     if (name === 'A') {
-      ['type3', 'type4', 'type6'].forEach(t => {
+      ['type1', 'type3', 'type4', 'type6'].forEach(t => {
         if (this.choicesConfig[t].enabled) {
           this._resizeDistractors(t, this.choicesConfig[t].count);
           this._renderChoicesList(t);
@@ -361,7 +362,7 @@ const App = {
   /** 現在選択中の Type の選択肢パネルを再描画（gridConfig や style の変更を反映） */
   _refreshActiveChoicesPanel() {
     const type = document.getElementById('problemType').value;
-    if (['type3', 'type4', 'type6'].includes(type) && this.choicesConfig[type]?.enabled) {
+    if (['type1', 'type3', 'type4', 'type6'].includes(type) && this.choicesConfig[type]?.enabled) {
       this._renderChoicesPanel(type);
     }
   },
@@ -429,11 +430,12 @@ const App = {
       const saved = localStorage.getItem('waveapp_choicesConfig');
       if (!saved) return;
       const obj = JSON.parse(saved);
-      ['type3', 'type4', 'type6'].forEach(t => {
+      ['type1', 'type3', 'type4', 'type6'].forEach(t => {
         const c = obj[t];
         if (!c) return;
         this.choicesConfig[t].enabled = !!c.enabled;
-        this.choicesConfig[t].count   = (typeof c.count === 'number' && c.count >= 2 && c.count <= 10) ? c.count : 6;
+        const defaultCount = this.choicesConfig[t].count;
+        this.choicesConfig[t].count   = (typeof c.count === 'number' && c.count >= 2 && c.count <= 10) ? c.count : defaultCount;
         this.choicesConfig[t].source  = c.source || 'manual';
         this.choicesConfig[t].distractors = (c.distractors || []).map(json => {
           const Ctor = (json.kind === 'sine') ? SineWave : Wave;
@@ -446,7 +448,7 @@ const App = {
   _saveChoicesConfig() {
     try {
       const out = {};
-      ['type3', 'type4', 'type6'].forEach(t => {
+      ['type1', 'type3', 'type4', 'type6'].forEach(t => {
         const c = this.choicesConfig[t];
         out[t] = {
           enabled: c.enabled,
@@ -864,7 +866,14 @@ const App = {
       keepZeroLine: this.keepZeroLine,
     });
 
-    if (type === 'type3') {
+    if (type === 'type1') {
+      if (this._activeWaveA().isEmpty()) return null;
+      const t = parseInt(document.getElementById('p1-answerT').value, 10);
+      if (isNaN(t) || t < 1) return null;
+      const sa = parseFloat(document.getElementById('waveASpeed').value);
+      if (!isNaN(sa)) { this.waveA.speed = sa; if (this.waveASine) this.waveASine.speed = sa; }
+      return gen.renderType1CorrectCanvas(this._activeWaveA(), t);
+    } else if (type === 'type3') {
       if (this._activeWaveA().isEmpty()) return null;
       const x    = parseFloat(document.getElementById('p3-x').value);
       const tMax = parseInt(document.getElementById('p3-tMax').value, 10);
@@ -1483,7 +1492,7 @@ const App = {
       if (el) el.style.display = (t === type) ? 'flex' : 'none';
     });
     // 選択肢セクションは Type3/Type4/Type6 のみ表示
-    ['type3', 'type4', 'type6'].forEach(t => {
+    ['type1', 'type3', 'type4', 'type6'].forEach(t => {
       const sec = document.getElementById(`choices-${t}-section`);
       if (sec) sec.style.display = (t === type) ? 'block' : 'none';
       if (t === type) this._renderChoicesPanel(t);
@@ -1507,6 +1516,7 @@ const App = {
       const el = document.getElementById(id);
       if (el) el.addEventListener('change', refresh(type));
     };
+    bind('p1-answerT', 'type1');
     bind('p3-x',       'type3');
     bind('p3-tMax',    'type3');
     bind('p4-answerT', 'type4');
@@ -1532,7 +1542,7 @@ const App = {
     }
 
     const type = document.getElementById('problemType').value;
-    const hasChoices = ['type3', 'type4', 'type6'].includes(type) && !!this.choicesConfig[type]?.enabled;
+    const hasChoices = ['type1', 'type3', 'type4', 'type6'].includes(type) && !!this.choicesConfig[type]?.enabled;
     const generator = new ProblemGenerator({
       gridConfig:  this.gridConfig,
       styleConfig: this.styleConfig,
@@ -1619,7 +1629,7 @@ const App = {
     }
 
     // 選択肢モードが有効なら choices を構築（Type6 は generateType6 内で構築済み）
-    if (['type3', 'type4'].includes(type) && this.choicesConfig[type].enabled) {
+    if (['type1', 'type3', 'type4'].includes(type) && this.choicesConfig[type].enabled) {
       try {
         result.choices = this._buildChoices(type, generator);
       } catch (e) {
@@ -1657,6 +1667,9 @@ const App = {
       if (type === 'type3') {
         const tMax = parseInt(document.getElementById('p3-tMax').value, 10);
         canvas = generator.renderType3DistractorCanvas(distractorWave, tMax);
+      } else if (type === 'type1') {
+        const t = parseInt(document.getElementById('p1-answerT').value, 10);
+        canvas = generator.renderType1DistractorCanvas(distractorWave, t);
       } else {
         const t = parseInt(document.getElementById('p4-answerT').value, 10);
         canvas = generator.renderType4DistractorCanvas(distractorWave, t);
@@ -1674,6 +1687,10 @@ const App = {
   /** シード生成用の入力文字列（問題定義から決定論的に作る） */
   _buildChoicesSeedSource(type) {
     const cfg = this.choicesConfig[type];
+    if (type === 'type1') {
+      const t = parseInt(document.getElementById('p1-answerT').value, 10);
+      return `t1|${JSON.stringify(this._activeWaveA().toJSON())}|t=${t}|n=${cfg.count}`;
+    }
     if (type === 'type3') {
       const x    = parseFloat(document.getElementById('p3-x').value);
       const tMax = parseInt(document.getElementById('p3-tMax').value, 10);

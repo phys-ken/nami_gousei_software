@@ -111,8 +111,8 @@ const GenerateRequest = z.object({
     ctx.addIssue({ code: 'custom', path: ['waveB'], message: `waveB is required for type ${t}` });
   }
   if (v.choices?.enabled) {
-    if (![3, 4, 6].includes(t)) {
-      ctx.addIssue({ code: 'custom', path: ['choices'], message: 'choices are only supported for types 3, 4, 6' });
+    if (![1, 3, 4, 6].includes(t)) {
+      ctx.addIssue({ code: 'custom', path: ['choices'], message: 'choices are only supported for types 1, 3, 4, 6' });
     }
     if (v.choices.distractors.length !== v.choices.count - 1) {
       ctx.addIssue({

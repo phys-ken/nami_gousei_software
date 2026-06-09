@@ -24,6 +24,23 @@ const EX = {
     params: { answerT: 3 },
     filenamePrefix: 'http_type1',
   },
+  type1_choices: {
+    type: 1, style: 'gray',
+    waveA: {
+      vertices: [{x:0,y:0},{x:1,y:0.5},{x:2,y:1},{x:3,y:0.5},{x:4,y:0}],
+      speed: 1, direction: 1,
+    },
+    params: { answerT: 3 },
+    choices: {
+      enabled: true, count: 4, shuffle: true,
+      distractors: [
+        { vertices: [{x:0,y:0},{x:1,y:-0.5},{x:2,y:-1},{x:3,y:-0.5},{x:4,y:0}], speed: 0, direction: 1 },
+        { vertices: [{x:0,y:0.5},{x:2,y:-0.5},{x:4,y:0.5}], speed: 0, direction: 1 },
+        { vertices: [{x:0,y:0},{x:4,y:0}], speed: 0, direction: 1 },
+      ],
+    },
+    filenamePrefix: 'http_type1_choices',
+  },
   type2: {
     type: 2,
     waveA: {
@@ -217,6 +234,20 @@ describe('POST /api/generate — Type1 (y-x グラフ)', () => {
   });
   it('files.answer に PNG パスがある', () => {
     assert.ok(Array.isArray(result.files.answer) && result.files.answer.length > 0);
+  });
+});
+
+describe('POST /api/generate — Type1 (y-x グラフ + 選択肢)', () => {
+  let result;
+  before(async () => { ({ body: result } = await apiPost(EX.type1_choices)); });
+
+  it('success: true', () => assert.equal(result.success, true));
+  it('files.choices が4件', () => {
+    assert.ok(Array.isArray(result.files.choices) && result.files.choices.length === 4);
+  });
+  it('isCorrect: true が1件だけ', () => {
+    const correct = result.files.choices.filter(c => c.isCorrect);
+    assert.equal(correct.length, 1);
   });
 });
 

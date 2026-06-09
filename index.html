@@ -389,6 +389,27 @@
             </label>
           </div>
 
+          <!-- Type 1 選択肢モード -->
+          <div id="choices-type1-section" class="choices-section" style="display:none">
+            <div class="choices-toggle-row">
+              <button id="choices-type1-toggle" class="toggle-btn" onclick="App.toggleChoicesMode('type1')">
+                選択肢問題にする
+              </button>
+              <span class="choices-status" id="choices-type1-status"></span>
+            </div>
+            <div id="choices-type1-panel" class="choices-panel" style="display:none">
+              <div class="choices-panel-header">
+                <label>
+                  選択肢数:
+                  <input type="number" id="choices-type1-count" value="4" min="2" max="10"
+                         onchange="App.onChoicesCountChange('type1')" class="choices-count-input">
+                </label>
+                <span class="choices-hint">選択肢① は正答（自動生成）。選択肢② 以降を編集してください。</span>
+              </div>
+              <div id="choices-type1-list" class="choices-list"></div>
+            </div>
+          </div>
+
           <!-- Type 3 選択肢モード -->
           <div id="choices-type3-section" class="choices-section" style="display:none">
             <div class="choices-toggle-row">

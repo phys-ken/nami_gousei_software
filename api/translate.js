@@ -94,7 +94,12 @@ function attachType3Or4Choices(result, gen, spec, sandbox) {
   const items = [];
 
   let correctCanvas;
-  if (type === 3) {
+  if (type === 1) {
+    correctCanvas = gen.renderType1CorrectCanvas(
+      buildWave(spec.waveA, sandbox),
+      spec.params.answerT,
+    );
+  } else if (type === 3) {
     const opts3 = {};
     if (spec.waveB) {
       const wB3 = buildWave(spec.waveB, sandbox);
@@ -118,8 +123,9 @@ function attachType3Or4Choices(result, gen, spec, sandbox) {
   for (const dJson of cfg.distractors || []) {
     const dWave = buildWave(dJson, sandbox);
     let canvas;
-    if (type === 3) canvas = gen.renderType3DistractorCanvas(dWave, spec.params.tMax);
-    else            canvas = gen.renderType4DistractorCanvas(dWave, spec.params.answerT);
+    if (type === 3)      canvas = gen.renderType3DistractorCanvas(dWave, spec.params.tMax);
+    else if (type === 1) canvas = gen.renderType1DistractorCanvas(dWave, spec.params.answerT);
+    else                 canvas = gen.renderType4DistractorCanvas(dWave, spec.params.answerT);
     items.push({ canvas, isCorrect: false });
   }
 
@@ -132,6 +138,9 @@ function attachType3Or4Choices(result, gen, spec, sandbox) {
 function buildSeedSource(type, spec) {
   const cfg = spec.choices;
   const aJson = JSON.stringify(spec.waveA);
+  if (type === 1) {
+    return `t1|${aJson}|t=${spec.params.answerT}|n=${cfg.count}`;
+  }
   if (type === 3) {
     const bJson3 = spec.waveB ? JSON.stringify(spec.waveB) : '';
     const bStr3 = bJson3 ? `|B=${bJson3}` : '';

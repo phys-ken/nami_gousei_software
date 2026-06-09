@@ -40,7 +40,7 @@ class Bridge {
 
     if (spec.type === 6) {
       attachType6Seed(result, spec, this.sandbox);
-    } else if (spec.type === 3 || spec.type === 4) {
+    } else if (spec.type === 1 || spec.type === 3 || spec.type === 4) {
       attachType3Or4Choices(result, gen, spec, this.sandbox);
     }
 

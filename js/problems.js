@@ -301,6 +301,38 @@ class ProblemGenerator {
   }
 
   /**
+   * Type1 の正答（単一波のみ）を描画した Canvas を返す
+   * 凡例なし・単一波のみ（選択肢比較用）
+   */
+  renderType1CorrectCanvas(wave, t) {
+    const canvas = this._makeCanvas();
+    const r = this._makeRenderer(canvas, {});
+    r.clear();
+    r.drawGrid();
+    r.drawAxes();
+    r.drawTimeLabel(t);
+    const { xMin, xMax } = r.config;
+
+    // 正弦波は密サンプリング、折れ線は頂点ベース
+    const keyXs = wave.getKeyXs(t);
+    let pts;
+    if (keyXs.length === 0 && !wave.isEmpty()) {
+      // 密サンプリング
+      const STEP = 0.05;
+      const count = Math.ceil((xMax - xMin) / STEP);
+      pts = Array.from({ length: count + 1 }, (_, i) => {
+        const x = xMin + i * STEP;
+        return { x, y: wave.getYAtTime(x, t) };
+      });
+    } else {
+      pts = wave.getSnapshot(xMin, xMax, t);
+    }
+
+    r.drawWave(pts, this._styleSingle);
+    return canvas;
+  }
+
+  /**
    * Type4 の正答（合成波のみ）を描画した Canvas を返す
    * 凡例なし・合成波のみ（選択肢比較用）
    */
@@ -362,6 +394,25 @@ class ProblemGenerator {
       // distractor は静的な折れ線（伝播しない）→ t=0 として描画
       const pts = distractorWave.getSnapshot(xMin, xMax, 0);
       r.drawWave(pts, this._styleSum);
+    }
+    return canvas;
+  }
+
+  /**
+   * Type1 の不正解 Canvas（distractor の波形を単一波の代替として描画）
+   */
+  renderType1DistractorCanvas(distractorWave, t) {
+    const canvas = this._makeCanvas();
+    const r = this._makeRenderer(canvas, {});
+    r.clear();
+    r.drawGrid();
+    r.drawAxes();
+    r.drawTimeLabel(t);
+    if (distractorWave && !distractorWave.isEmpty()) {
+      const { xMin, xMax } = r.config;
+      // distractor は静的な折れ線（伝播しない）→ t=0 として描画
+      const pts = distractorWave.getSnapshot(xMin, xMax, 0);
+      r.drawWave(pts, this._styleSingle);
     }
     return canvas;
   }

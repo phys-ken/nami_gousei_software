@@ -105,11 +105,11 @@ describe('validate.js — バリデーション', () => {
     assert.ok(!r.success);
   });
 
-  it('Type1 に choices を付けると失敗（types 3,4,6 のみ対応）', () => {
+  it('Type2 に choices を付けると失敗（types 1,3,4,6 のみ対応）', () => {
     const r = validateRequest({
-      type: 1,
+      type: 2,
       waveA: WAVE_A_TRIANGLE,
-      params: { answerT: 3 },
+      params: { x: 5, t: 2 },
       choices: { enabled: true, count: 4, distractors: THREE_DISTRACTORS },
     });
     assert.ok(!r.success);
@@ -245,6 +245,23 @@ describe('Bridge.generate — Type1（単一波・y-x グラフ）', () => {
     const m = JSON.parse(fs.readFileSync(r.files.manifest, 'utf8'));
     assert.ok(m.request);
     assert.ok(m.response);
+  });
+
+  it('選択肢あり（count=4）で4つの choices が返る', () => {
+    const r = gen({
+      type: 1,
+      waveA: WAVE_A_TRIANGLE,
+      params: { answerT: 3 },
+      choices: {
+        enabled: true,
+        count: 4,
+        distractors: THREE_DISTRACTORS,
+      },
+    }, 't1_choices');
+    assert.ok(r.success, r.error);
+    assert.ok(r.files.choices && r.files.choices.length === 4);
+    const correct = r.files.choices.filter(c => c.isCorrect);
+    assert.equal(correct.length, 1);
   });
 });
 
