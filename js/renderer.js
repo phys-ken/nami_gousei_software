@@ -137,8 +137,8 @@ class WaveRenderer {
       if (c.keepZeroLine) {
         ctx.save();
         ctx.strokeStyle = '#000000';
-        ctx.lineWidth   = 2;
-        ctx.setLineDash([]);
+        ctx.lineWidth   = 1.5;
+        ctx.setLineDash([4, 4]);
         const { px: xLeft }   = this.toPixel(c.xMin, 0);
         const { px: xRight }  = this.toPixel(c.xMax, 0);
         const { py: yAxis }   = this.toPixel(0, 0);
