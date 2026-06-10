@@ -44,11 +44,11 @@ npm test
 # または個別に
 node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js
 
-# API バックエンド堅牢性・安全性テスト（74 ケース）
+# API バックエンド堅牢性・安全性テスト（79 ケース）
 # node_modules が ./node_modules にない場合は WAVE_API_NODE_MODULES を指定
 node --test tests/api.test.js
 
-# 全テスト一括（サーバー不要、179 ケース）
+# 全テスト一括（サーバー不要、184 ケース）
 node --test tests/wave.test.js tests/renderer.test.js tests/random.test.js tests/api.test.js
 
 # HTTP 統合テスト（node api_server.js 起動中に実行すること）
@@ -65,7 +65,7 @@ npm run smoke
 - `wave.js`: 71 ケース（Wave: setVertex / getY / getYAtTime / getSnapshot / clear / toJSON / reflect、SineWave: getYAtTime / getSnapshot / reflect / toJSON）
 - `renderer.js`: 16 ケース（`computeCanvasSize`）
 - `random.js`: 18 ケース（djb2 ハッシュ・mulberry32 PRNG・seededShuffle の決定論性）
-- `api.test.js`: 74 ケース（バリデーション・Type1〜7 生成・正弦波モード・選択肢・シャッフル決定論性・inline モード・パストラバーサル防御・並行安全性・エッジケース）。同期版 `bridge.generate()` を呼ぶため DOCX/Bundle ZIP 生成はテストの対象外（生成自体の動作確認は `npm run smoke` または手動 curl で実施）
+- `api.test.js`: 79 ケース（バリデーション・Type1〜7 生成・正弦波モード・選択肢・シャッフル決定論性・inline モード・パストラバーサル防御・並行安全性・エッジケース・波形のみ表示モード）。同期版 `bridge.generate()` を呼ぶため DOCX/Bundle ZIP 生成はテストの対象外（生成自体の動作確認は `npm run smoke` または手動 curl で実施）
 - `problems.js`・`editor.js`・`exporter.js`・`app.js` はブラウザ Canvas/DOM に依存するためブラウザでのみ動作確認可能
 
 ## アーキテクチャ
@@ -223,6 +223,17 @@ Type3/6 では `answerCanvases` の先頭以外と `refCanvases` の中身が重
 - バリデーション: `15 ≤ cellPx ≤ 120`（`WaveRenderer.CELL_PX_MIN/MAX`）
 - **Type 3 の y-t グラフは特殊扱い**: 横は固定 580px、縦のみ `cellSize.h` を反映する（時間軸の物理意味が y-x グラフと異なるため `cellSize.w` は流用しない）
 - 影響箇所: エディタCanvas（`_setupEditorA/B`）／プレビューCanvas（`renderPreview`）／設問Canvas（`ProblemGenerator._makeCanvas`）の3系統が同じ計算式を共有
+
+### フォントサイズ・表示項目設定（定性的モード）
+
+`App.gridConfig` に `fontSize`（8〜24、既定 12）と8つの表示フラグ `showGrid` / `showAxes` / `showZeroLine` / `showTicksY` / `showTicksX` / `showUnitY` / `showUnitX` / `showTimeLabel`（すべて既定 `true`）を追加。`localStorage` キー `waveapp_fontSize`・`waveapp_show*`・`waveapp_waveOnly`・`waveapp_keepZeroLine` で永続化。
+
+- **フォントスケーリング**: `WaveRenderer` は `padScale = Math.max(1, fontSize/12)` を全余白（padding）・原点 `O` の位置・軸ラベルとの間隔に乗算し、`computeCanvasSize` が拡大分だけ Canvas 全体を自動拡張する。**注意**: `xRight + 8` のような固定ピクセルオフセットは `padScale` 倍にしないと、fontSize 拡大時に軸ラベル（`x [cm]`）と末尾の目盛り数値が重なる。Type3 の y-t グラフも `_type3GridConfig` 経由で `fontSize` を継承する
+- **単位の自動除去**: `showUnitY`/`showUnitX` が `false` の場合、軸ラベル（例 `y [cm]`）から正規表現で `[...]` 部分を取り除き `y` のみ表示する
+- **横軸（y=0）の個別維持**: `showAxes: false` でも `showZeroLine: true` なら y=0 の基準線を破線で残せる（背景削除モードでの定性的議論用）
+- **プリセット**: `App.applyDisplayPreset('all'|'qualitative'|'qualitative-grid')` で「標準／定性的（グリッドなし）／定性的+グリッド」を一括切替。`waveOnlyMode` ON 時は8フラグの個別チェックボックスを disabled にする（`_updateDisplayOptionsDisabledState`）
+- **即時反映**: 値変更時に進行波プレビューおよび生成済みの設問・選択肢・解答・解説の全 Canvas を即座に再描画する
+- **API 対応**: `api/validate.js` の `GridSpec` と `api/translate.js` の `GRID_DEFAULTS` も同じフィールドをサポート（show* は既定 `true`、`fontSize` 既定 12）
 
 ## GitHub Pages での公開
 

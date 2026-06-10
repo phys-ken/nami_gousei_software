@@ -137,6 +137,20 @@ curl http://localhost:8001/api/health
 | `filenamePrefix` | string | 出力ファイルの接頭辞。既定 `"q001"` |
 | `inline` | bool | `true` で base64 dataURL 返却（ファイル保存しない） |
 
+**`grid` の表示オプション（すべて省略可）:**
+
+| フィールド | 型 | 既定値 | 説明 |
+|------------|----|--------|------|
+| `fontSize` | int 8-24 | `12` | グラフ内フォントサイズ。軸ラベル・目盛数値・原点 `O`・時刻ラベルを一律スケーリングし、余白と Canvas サイズも自動拡張する |
+| `showGrid` | bool | `true` | 背景グリッド線の表示 |
+| `showAxes` | bool | `true` | グラフの軸（矢印線）の表示 |
+| `showZeroLine` | bool | `true` | 横軸（y=0 の基準線）の表示。`showAxes: false` でも独立して点線表示できる |
+| `showTicksY` / `showTicksX` | bool | `true` | 縦軸 / 横軸の目盛り数値の表示 |
+| `showUnitY` / `showUnitX` | bool | `true` | 縦軸 / 横軸ラベルの単位表示。`false` 時は `y [cm]` → `y` のように `[...]` 部分を除去 |
+| `showTimeLabel` | bool | `true` | 経過時間（`t = ○ [s]`）ラベルの表示 |
+
+`showGrid`〜`showTimeLabel` をすべて `false` にすると、目盛りや単位のない「波形のみ表示」の定性的グラフになる。
+
 **タイプ別の必須 `params`:**
 
 | Type | 内容 | params | waveB |
