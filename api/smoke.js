@@ -43,21 +43,56 @@ const gen = new ProblemGenerator({
   gridConfig: {
     xMin: 0, xMax: 10, yMin: -2, yMax: 2,
     paddingLeft: 40, paddingRight: 20, paddingTop: 20, paddingBottom: 40,
+    fontSize: 12
+  },
+  styleConfig: STYLE_PRESETS.gray,
+  cellSize: { w: null, h: null },
+});
+
+const genSmall = new ProblemGenerator({
+  gridConfig: {
+    xMin: 0, xMax: 10, yMin: -2, yMax: 2,
+    paddingLeft: 40, paddingRight: 20, paddingTop: 20, paddingBottom: 40,
+    fontSize: 8
+  },
+  styleConfig: STYLE_PRESETS.gray,
+  cellSize: { w: null, h: null },
+});
+
+const genLarge = new ProblemGenerator({
+  gridConfig: {
+    xMin: 0, xMax: 10, yMin: -2, yMax: 2,
+    paddingLeft: 40, paddingRight: 20, paddingTop: 20, paddingBottom: 40,
+    fontSize: 24
   },
   styleConfig: STYLE_PRESETS.gray,
   cellSize: { w: null, h: null },
 });
 
 const result = gen.generateType1({ wave: waveA, answerT: 3 });
+const resultSmall = genSmall.generateType1({ wave: waveA, answerT: 3 });
+const resultLarge = genLarge.generateType1({ wave: waveA, answerT: 3 });
+
 console.log('[smoke] questionText:', result.questionText);
 console.log('[smoke] answerCanvases length:', result.answerCanvases.length);
 
 const outDir = path.join(PROJECT_ROOT, 'api_output', 'smoke');
 fs.mkdirSync(outDir, { recursive: true });
+
 const png = result.answerCanvases[0].toBuffer('image/png');
 const outPath = path.join(outDir, 'type1_t3.png');
 fs.writeFileSync(outPath, png);
 console.log('[smoke] Wrote:', outPath, `(${png.length} bytes)`);
+
+const pngSmall = resultSmall.answerCanvases[0].toBuffer('image/png');
+const outPathSmall = path.join(outDir, 'type1_t3_small.png');
+fs.writeFileSync(outPathSmall, pngSmall);
+console.log('[smoke] Wrote:', outPathSmall, `(${pngSmall.length} bytes)`);
+
+const pngLarge = resultLarge.answerCanvases[0].toBuffer('image/png');
+const outPathLarge = path.join(outDir, 'type1_t3_large.png');
+fs.writeFileSync(outPathLarge, pngLarge);
+console.log('[smoke] Wrote:', outPathLarge, `(${pngLarge.length} bytes)`);
 
 console.log('\n[smoke] All Phase A/B checks passed.');
 

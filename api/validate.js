@@ -42,6 +42,15 @@ const GridSpec = z.object({
   paddingRight: z.number().int().nonnegative().optional(),
   paddingTop: z.number().int().nonnegative().optional(),
   paddingBottom: z.number().int().nonnegative().optional(),
+  fontSize: z.number().int().min(8).max(24).optional(),
+  showGrid: z.boolean().optional(),
+  showAxes: z.boolean().optional(),
+  showZeroLine: z.boolean().optional(),
+  showTicksY: z.boolean().optional(),
+  showTicksX: z.boolean().optional(),
+  showUnitY: z.boolean().optional(),
+  showUnitX: z.boolean().optional(),
+  showTimeLabel: z.boolean().optional(),
 }).refine((g) => {
   if (g.xMin !== undefined && g.xMax !== undefined && g.xMin >= g.xMax) return false;
   if (g.yMin !== undefined && g.yMax !== undefined && g.yMin >= g.yMax) return false;

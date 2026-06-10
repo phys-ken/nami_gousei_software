@@ -3,6 +3,14 @@
 const GRID_DEFAULTS = {
   xMin: 0, xMax: 10, yMin: -2, yMax: 2,
   paddingLeft: 52, paddingRight: 52, paddingTop: 32, paddingBottom: 44,
+  showGrid: true,
+  showAxes: true,
+  showZeroLine: true,
+  showTicksY: true,
+  showTicksX: true,
+  showUnitY: true,
+  showUnitX: true,
+  showTimeLabel: true,
 };
 
 function resolveStyle(style, STYLE_PRESETS) {

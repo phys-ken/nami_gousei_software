@@ -8,7 +8,12 @@ const App = {
   hasWaveB: false,
   editorA: null,
   editorB: null,
-  gridConfig: { xMin: 0, xMax: 10, yMin: -2, yMax: 2 },
+  gridConfig: {
+    xMin: 0, xMax: 10, yMin: -2, yMax: 2, fontSize: 12,
+    showGrid: true, showAxes: true, showZeroLine: true,
+    showTicksY: true, showTicksX: true, showUnitY: true, showUnitX: true,
+    showTimeLabel: true,
+  },
   cellSize: { w: null, h: null }, // null=自動（580×200 デフォルト）
   waveOnly: false,               // true のときはグリッド・軸・ラベルを全て非表示
   keepZeroLine: false,           // waveOnly=true のとき、y=0 の横軸だけを残すか
@@ -273,13 +278,38 @@ const App = {
     this.waveB.label = 'B';
     this.waveB.direction = -1; // デフォルトは左向き
 
-    // waveOnly, keepZeroLine を localStorage から復元
+    // waveOnly, keepZeroLine, fontSize, 表示オプション を localStorage から復元
     try {
       this.waveOnly = localStorage.getItem('waveapp_waveOnly') === '1';
       this.keepZeroLine = localStorage.getItem('waveapp_keepZeroLine') === '1';
+      const savedFontSize = localStorage.getItem('waveapp_fontSize');
+      if (savedFontSize) {
+        this.gridConfig.fontSize = parseInt(savedFontSize, 10) || 12;
+      }
+      const loadBool = (key, def) => {
+        const val = localStorage.getItem('waveapp_' + key);
+        return val !== null ? val === '1' : def;
+      };
+      this.gridConfig.showGrid = loadBool('showGrid', true);
+      this.gridConfig.showAxes = loadBool('showAxes', true);
+      this.gridConfig.showZeroLine = loadBool('showZeroLine', true);
+      this.gridConfig.showTicksY = loadBool('showTicksY', true);
+      this.gridConfig.showTicksX = loadBool('showTicksX', true);
+      this.gridConfig.showUnitY = loadBool('showUnitY', true);
+      this.gridConfig.showUnitX = loadBool('showUnitX', true);
+      this.gridConfig.showTimeLabel = loadBool('showTimeLabel', true);
     } catch (_) {
       this.waveOnly = false;
       this.keepZeroLine = false;
+      this.gridConfig.fontSize = 12;
+      this.gridConfig.showGrid = true;
+      this.gridConfig.showAxes = true;
+      this.gridConfig.showZeroLine = true;
+      this.gridConfig.showTicksY = true;
+      this.gridConfig.showTicksX = true;
+      this.gridConfig.showUnitY = true;
+      this.gridConfig.showUnitX = true;
+      this.gridConfig.showTimeLabel = true;
     }
 
     this._loadStyleConfig();
@@ -313,17 +343,90 @@ const App = {
     document.getElementById('yMax').value = this.gridConfig.yMax;
     const waveOnlyEl = document.getElementById('waveOnlyMode');
     if (waveOnlyEl) waveOnlyEl.checked = !!this.waveOnly;
-    const keepZeroLineEl = document.getElementById('keepZeroLine');
-    if (keepZeroLineEl) keepZeroLineEl.checked = !!this.keepZeroLine;
-    this.toggleWaveOnlySubOptions();
+
+    const syncBool = (id, key) => {
+      const el = document.getElementById(id);
+      if (el) el.checked = !!this.gridConfig[key];
+    };
+    syncBool('showGrid', 'showGrid');
+    syncBool('showAxes', 'showAxes');
+    syncBool('showZeroLine', 'showZeroLine');
+    syncBool('showTicksY', 'showTicksY');
+    syncBool('showTicksX', 'showTicksX');
+    syncBool('showUnitY', 'showUnitY');
+    syncBool('showUnitX', 'showUnitX');
+    syncBool('showTimeLabel', 'showTimeLabel');
+
+    this._updateDisplayOptionsDisabledState(!!this.waveOnly);
+
+    // fontSize の同期
+    const fsVal = this.gridConfig.fontSize || 12;
+    const fsNum = document.getElementById('fontSizeNumber');
+    const fsRange = document.getElementById('fontSizeRange');
+    if (fsNum) fsNum.value = fsVal;
+    if (fsRange) fsRange.value = fsVal;
   },
 
-  toggleWaveOnlySubOptions() {
+  onWaveOnlyModeChange() {
     const waveOnlyEl = document.getElementById('waveOnlyMode');
-    const keepZeroLineRow = document.getElementById('keepZeroLineRow');
-    if (waveOnlyEl && keepZeroLineRow) {
-      keepZeroLineRow.style.display = waveOnlyEl.checked ? 'block' : 'none';
+    this.waveOnly = waveOnlyEl ? waveOnlyEl.checked : false;
+    this._updateDisplayOptionsDisabledState(this.waveOnly);
+    this.applyGridConfig();
+  },
+
+  onDisplayOptionChange() {
+    this.applyGridConfig();
+  },
+
+  _updateDisplayOptionsDisabledState(isWaveOnly) {
+    const keys = ['showGrid', 'showAxes', 'showZeroLine', 'showTicksY', 'showTicksX', 'showUnitY', 'showUnitX', 'showTimeLabel'];
+    keys.forEach(key => {
+      const el = document.getElementById(key);
+      if (el) el.disabled = isWaveOnly;
+    });
+  },
+
+  applyDisplayPreset(preset) {
+    const setChecked = (id, checked) => {
+      const el = document.getElementById(id);
+      if (el) el.checked = checked;
+    };
+
+    if (preset === 'all') {
+      setChecked('waveOnlyMode', false);
+      setChecked('showGrid', true);
+      setChecked('showAxes', true);
+      setChecked('showZeroLine', true);
+      setChecked('showTicksY', true);
+      setChecked('showTicksX', true);
+      setChecked('showUnitY', true);
+      setChecked('showUnitX', true);
+      setChecked('showTimeLabel', true);
+    } else if (preset === 'qualitative') {
+      setChecked('waveOnlyMode', false);
+      setChecked('showGrid', false);
+      setChecked('showAxes', true);
+      setChecked('showZeroLine', true);
+      setChecked('showTicksY', false);
+      setChecked('showTicksX', false);
+      setChecked('showUnitY', false);
+      setChecked('showUnitX', false);
+      setChecked('showTimeLabel', false);
+    } else if (preset === 'qualitative-grid') {
+      setChecked('waveOnlyMode', false);
+      setChecked('showGrid', true);
+      setChecked('showAxes', true);
+      setChecked('showZeroLine', true);
+      setChecked('showTicksY', false);
+      setChecked('showTicksX', false);
+      setChecked('showUnitY', false);
+      setChecked('showUnitX', false);
+      setChecked('showTimeLabel', false);
     }
+
+    this.waveOnly = false;
+    this._updateDisplayOptionsDisabledState(false);
+    this.applyGridConfig();
   },
 
   applyGridConfig() {
@@ -341,7 +444,26 @@ const App = {
     const newCellSize = this._readCellSizeInputs();
     if (newCellSize === null) return;  // バリデーションエラーで中断
 
-    this.gridConfig = { xMin, xMax, yMin, yMax };
+    const prevFontSize = this.gridConfig.fontSize || 12;
+
+    const readBool = (id, key) => {
+      const el = document.getElementById(id);
+      return el ? el.checked : !!this.gridConfig[key];
+    };
+
+    const showGrid = readBool('showGrid', 'showGrid');
+    const showAxes = readBool('showAxes', 'showAxes');
+    const showZeroLine = readBool('showZeroLine', 'showZeroLine');
+    const showTicksY = readBool('showTicksY', 'showTicksY');
+    const showTicksX = readBool('showTicksX', 'showTicksX');
+    const showUnitY = readBool('showUnitY', 'showUnitY');
+    const showUnitX = readBool('showUnitX', 'showUnitX');
+    const showTimeLabel = readBool('showTimeLabel', 'showTimeLabel');
+
+    this.gridConfig = {
+      xMin, xMax, yMin, yMax, fontSize: prevFontSize,
+      showGrid, showAxes, showZeroLine, showTicksY, showTicksX, showUnitY, showUnitX, showTimeLabel
+    };
     this.cellSize   = newCellSize;
 
     // 波形のみモードの反映
@@ -349,13 +471,40 @@ const App = {
     this.waveOnly = waveOnlyEl ? waveOnlyEl.checked : false;
     try { localStorage.setItem('waveapp_waveOnly', this.waveOnly ? '1' : '0'); } catch (_) {}
 
-    const keepZeroLineEl = document.getElementById('keepZeroLine');
-    this.keepZeroLine = keepZeroLineEl ? keepZeroLineEl.checked : false;
+    // keepZeroLine は showZeroLine と同じにする
+    this.keepZeroLine = showZeroLine;
     try { localStorage.setItem('waveapp_keepZeroLine', this.keepZeroLine ? '1' : '0'); } catch (_) {}
 
+    // 詳細表示設定の保存
+    const saveBool = (key) => {
+      try { localStorage.setItem('waveapp_' + key, this.gridConfig[key] ? '1' : '0'); } catch (_) {}
+    };
+    saveBool('showGrid');
+    saveBool('showAxes');
+    saveBool('showZeroLine');
+    saveBool('showTicksY');
+    saveBool('showTicksX');
+    saveBool('showUnitY');
+    saveBool('showUnitX');
+    saveBool('showTimeLabel');
+
     this._saveCellSize();
+
+    // エディタの再構築
     this._setupEditorA();
     if (this.hasWaveB) this._setupEditorB();
+
+    // 進行波プレビューの再描画
+    const previewContainer = document.getElementById('previewContainer');
+    if (previewContainer && previewContainer.childNodes.length > 0) {
+      this.renderPreview();
+    }
+
+    // 設問プレビューの再生成（すでに設問が生成されている場合）
+    if (this.currentProblem) {
+      this.generateProblem();
+    }
+
     this._refreshActiveChoicesPanel();
   },
 
@@ -364,6 +513,44 @@ const App = {
     const type = document.getElementById('problemType').value;
     if (['type1', 'type3', 'type4', 'type6'].includes(type) && this.choicesConfig[type]?.enabled) {
       this._renderChoicesPanel(type);
+    }
+  },
+
+  onFontSizeChange(val) {
+    let size = parseInt(val, 10);
+    if (isNaN(size)) size = 12;
+    if (size < 8) size = 8;
+    if (size > 24) size = 24;
+
+    this.gridConfig.fontSize = size;
+
+    // UIの同期
+    const fsNum = document.getElementById('fontSizeNumber');
+    const fsRange = document.getElementById('fontSizeRange');
+    if (fsNum && parseInt(fsNum.value, 10) !== size) fsNum.value = size;
+    if (fsRange && parseInt(fsRange.value, 10) !== size) fsRange.value = size;
+
+    try {
+      localStorage.setItem('waveapp_fontSize', String(size));
+    } catch (_) {}
+
+    // Canvas 再描画
+    this._setupEditorA();
+    if (this.hasWaveB) this._setupEditorB();
+
+    if (this.waveAMode === 'sine') this._renderSineWavePreview('A');
+    if (this.waveBMode === 'sine' && this.hasWaveB) this._renderSineWavePreview('B');
+
+    // 進行波プレビューの再描画
+    const previewContainer = document.getElementById('previewContainer');
+    if (previewContainer && previewContainer.childNodes.length > 0) {
+      this.renderPreview();
+    }
+
+    // 設問と選択肢パネルの再描画
+    this._refreshActiveChoicesPanel();
+    if (this.currentProblem) {
+      this.generateProblem();
     }
   },
 
@@ -948,6 +1135,7 @@ const App = {
       return {
         xMin: 0, xMax: tMax,
         yMin: this.gridConfig.yMin, yMax: this.gridConfig.yMax,
+        fontSize: this.gridConfig.fontSize,
       };
     }
     return Object.assign({}, this.gridConfig);

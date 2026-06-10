@@ -26,16 +26,38 @@ class WaveRenderer {
    */
   static computeCanvasSize(gridConfig, cellSize, padding) {
     const cs  = cellSize || {};
-    const pad = padding  || WaveRenderer.DEFAULT_PADDING;
+    const fontSize = gridConfig.fontSize || 12;
+    const padScale = Math.max(1, fontSize / 12);
+    const basePad = padding || WaveRenderer.DEFAULT_PADDING;
+
+    const getPadVal = (p, key1, key2) => {
+      if (!p) return 0;
+      if (p[key1] !== undefined) return p[key1];
+      if (p[key2] !== undefined) return p[key2];
+      return 0;
+    };
+
+    const defaultLeft   = getPadVal(basePad, 'left', 'paddingLeft');
+    const defaultRight  = getPadVal(basePad, 'right', 'paddingRight');
+    const defaultTop    = getPadVal(basePad, 'top', 'paddingTop');
+    const defaultBottom = getPadVal(basePad, 'bottom', 'paddingBottom');
+
+    const pad = {
+      left:   Math.round(defaultLeft * padScale),
+      right:  Math.round(defaultRight * padScale),
+      top:    Math.round(defaultTop * padScale),
+      bottom: Math.round(defaultBottom * padScale),
+    };
+
     const xRange = gridConfig.xMax - gridConfig.xMin;
     const yRange = gridConfig.yMax - gridConfig.yMin;
 
     const width  = (cs.w && cs.w > 0)
       ? Math.round(xRange * cs.w + pad.left + pad.right)
-      : WaveRenderer.DEFAULT_DISP_W;
+      : Math.round((WaveRenderer.DEFAULT_DISP_W - defaultLeft - defaultRight) + pad.left + pad.right);
     const height = (cs.h && cs.h > 0)
       ? Math.round(yRange * cs.h + pad.top + pad.bottom)
-      : WaveRenderer.DEFAULT_DISP_H;
+      : Math.round((WaveRenderer.DEFAULT_DISP_H - defaultTop - defaultBottom) + pad.top + pad.bottom);
 
     return { width, height };
   }
@@ -53,14 +75,24 @@ class WaveRenderer {
       this.ctx.scale(pr, pr);
     }
 
+    const fontSize = config.fontSize || 12;
+    const padScale = Math.max(1, fontSize / 12);
+
     this.config = Object.assign({
       xMin: 0,  xMax: 10,
       yMin: -2, yMax: 2,
-      paddingLeft:   52,
-      paddingRight:  52,
-      paddingTop:    32,
-      paddingBottom: 44,
+      paddingLeft:   Math.round(52 * padScale),
+      paddingRight:  Math.round(52 * padScale),
+      paddingTop:    Math.round(32 * padScale),
+      paddingBottom: Math.round(44 * padScale),
     }, config);
+
+    if (fontSize > 12) {
+      if (config.paddingLeft !== undefined)   this.config.paddingLeft   = Math.round(config.paddingLeft   * padScale);
+      if (config.paddingRight !== undefined)  this.config.paddingRight  = Math.round(config.paddingRight  * padScale);
+      if (config.paddingTop !== undefined)     this.config.paddingTop    = Math.round(config.paddingTop    * padScale);
+      if (config.paddingBottom !== undefined)  this.config.paddingBottom = Math.round(config.paddingBottom * padScale);
+    }
   }
 
   updateConfig(config) {
@@ -98,8 +130,8 @@ class WaveRenderer {
   }
 
   drawGrid() {
-    // waveOnly モードではグリッドを描画しない
-    if (this.config.waveOnly) return;
+    // waveOnly モード、または showGrid が false のときはグリッドを描画しない
+    if (this.config.waveOnly || this.config.showGrid === false) return;
     const ctx = this.ctx;
     const c   = this.config;
     // gridStyle が未指定のときは gray プリセット相当をフォールバック
@@ -132,33 +164,6 @@ class WaveRenderer {
   drawAxes(options = {}) {
     const ctx    = this.ctx;
     const c      = this.config;
-    // waveOnly モードでは軸・ラベル・目盛りを描画しない（keepZeroLine が有効な場合は y=0 の直線のみ描画）
-    if (c.waveOnly) {
-      if (c.keepZeroLine) {
-        ctx.save();
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth   = 1.5;
-        ctx.setLineDash([4, 4]);
-        const { px: xLeft }   = this.toPixel(c.xMin, 0);
-        const { px: xRight }  = this.toPixel(c.xMax, 0);
-        const { py: yAxis }   = this.toPixel(0, 0);
-        ctx.beginPath();
-        ctx.moveTo(xLeft, yAxis);
-        ctx.lineTo(xRight, yAxis);
-        ctx.stroke();
-        ctx.restore();
-      }
-      return;
-    }
-    const xLabel = options.xLabel || c.xLabel || 'x [cm]';
-    const yLabel = options.yLabel || c.yLabel || 'y [cm]';
-
-    ctx.save();
-    ctx.strokeStyle = '#000000';
-    ctx.fillStyle   = '#000000';
-    ctx.lineWidth   = 2;
-    ctx.setLineDash([]);
-
     const { px: xLeft }   = this.toPixel(c.xMin, 0);
     const { px: xRight }  = this.toPixel(c.xMax, 0);
     const { py: yAxis }   = this.toPixel(0, 0);
@@ -167,66 +172,138 @@ class WaveRenderer {
     // xMin > 0 のとき x=0 が画面外になるので、y軸をグラフ左端に描く
     const xAxis = c.xMin >= 0 ? Math.max(xLeft, this.toPixel(0, 0).px) : this.toPixel(0, 0).px;
 
-    // x 軸
-    ctx.beginPath();
-    ctx.moveTo(xLeft, yAxis);
-    ctx.lineTo(xRight + 14, yAxis);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(xRight + 14, yAxis);
-    ctx.lineTo(xRight + 6,  yAxis - 4);
-    ctx.lineTo(xRight + 6,  yAxis + 4);
-    ctx.closePath();
-    ctx.fill();
+    // waveOnly モードでは軸・ラベル・目盛りを描画しない（keepZeroLine/showZeroLine が有効な場合は y=0 の直線のみ描画）
+    if (c.waveOnly) {
+      if (c.keepZeroLine || c.showZeroLine) {
+        ctx.save();
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth   = 1.5;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(xLeft, yAxis);
+        ctx.lineTo(xRight, yAxis);
+        ctx.stroke();
+        ctx.restore();
+      }
+      return;
+    }
 
-    // y 軸
-    ctx.beginPath();
-    ctx.moveTo(xAxis, yBottom);
-    ctx.lineTo(xAxis, yTop - 14);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(xAxis,     yTop - 14);
-    ctx.lineTo(xAxis - 4, yTop - 6);
-    ctx.lineTo(xAxis + 4, yTop - 6);
-    ctx.closePath();
-    ctx.fill();
+    const xLabelRaw = options.xLabel || c.xLabel || 'x [cm]';
+    const yLabelRaw = options.yLabel || c.yLabel || 'y [cm]';
 
-    // 軸ラベル
-    ctx.font = '12px serif';
+    // 単位表示非表示の処理
+    let xLabel = xLabelRaw;
+    let yLabel = yLabelRaw;
+    if (c.showUnitX === false) {
+      xLabel = xLabel.replace(/\s*\[.*?\]/g, '');
+    }
+    if (c.showUnitY === false) {
+      yLabel = yLabel.replace(/\s*\[.*?\]/g, '');
+    }
+
+    // 軸線の描画
+    if (c.showAxes !== false) {
+      ctx.save();
+      ctx.strokeStyle = '#000000';
+      ctx.fillStyle   = '#000000';
+      ctx.lineWidth   = 2;
+      ctx.setLineDash([]);
+
+      // x 軸 (矢印付き)
+      ctx.beginPath();
+      ctx.moveTo(xLeft, yAxis);
+      ctx.lineTo(xRight + 14, yAxis);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(xRight + 14, yAxis);
+      ctx.lineTo(xRight + 6,  yAxis - 4);
+      ctx.lineTo(xRight + 6,  yAxis + 4);
+      ctx.closePath();
+      ctx.fill();
+
+      // y 軸 (矢印付き)
+      ctx.beginPath();
+      ctx.moveTo(xAxis, yBottom);
+      ctx.lineTo(xAxis, yTop - 14);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(xAxis,     yTop - 14);
+      ctx.lineTo(xAxis - 4, yTop - 6);
+      ctx.lineTo(xAxis + 4, yTop - 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    } else {
+      // 軸線非表示だが、横軸点線を表示する場合
+      if (c.showZeroLine || c.keepZeroLine) {
+        ctx.save();
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth   = 1.5;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(xLeft, yAxis);
+        ctx.lineTo(xRight, yAxis);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // 軸ラベルの描画
+    ctx.save();
+    const baseSize = this.config.fontSize || 12;
+    const padScale = Math.max(1, baseSize / 12);
+    ctx.font = `${baseSize}px serif`;
+    ctx.fillStyle = '#000000';
+
     ctx.textAlign    = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText(xLabel, xRight + 8, yAxis + 4);
+    // フォントサイズが大きいとき、xMax の目盛りラベルと x 軸ラベルが重なるため、
+    // 余白(paddingRight)のスケールに合わせて間隔も広げる
+    ctx.fillText(xLabel, xRight + Math.round(8 * padScale), yAxis + 4);
 
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'bottom';
     ctx.fillText(yLabel, xAxis, yTop - 16);
 
-    // 原点 O
-    ctx.font = '12px serif';
-    ctx.textAlign    = 'right';
-    ctx.textBaseline = 'top';
-    ctx.fillText('O', xAxis - 3, yAxis + 3);
-
-    // x 軸目盛り
-    ctx.lineWidth = 1;
-    ctx.font = '11px serif';
-    ctx.textAlign    = 'center';
-    ctx.textBaseline = 'top';
-    for (let x = Math.ceil(c.xMin); x <= Math.floor(c.xMax); x++) {
-      if (x === 0) continue;
-      const { px } = this.toPixel(x, 0);
-      ctx.beginPath(); ctx.moveTo(px, yAxis - 3); ctx.lineTo(px, yAxis + 3); ctx.stroke();
-      ctx.fillText(String(x), px, yAxis + 5);
+    // 原点 O (軸または目盛りが表示されている場合のみ描画)
+    if (c.showAxes !== false || c.showTicksX !== false || c.showTicksY !== false) {
+      ctx.font = `${baseSize}px serif`;
+      ctx.textAlign    = 'right';
+      ctx.textBaseline = 'middle';
+      const oMargin = Math.round(baseSize * 0.7);
+      ctx.fillText('O', xAxis - oMargin, yAxis);
     }
 
-    // y 軸目盛り
-    ctx.textAlign    = 'right';
-    ctx.textBaseline = 'middle';
-    for (let y = Math.ceil(c.yMin); y <= Math.floor(c.yMax); y++) {
-      if (y === 0) continue;
-      const { py } = this.toPixel(0, y);
-      ctx.beginPath(); ctx.moveTo(xAxis - 3, py); ctx.lineTo(xAxis + 3, py); ctx.stroke();
-      ctx.fillText(String(y), xAxis - 5, py);
+    // x 軸目盛り (数値とティック)
+    if (c.showTicksX !== false) {
+      ctx.lineWidth = 1;
+      const tickSize = Math.round(baseSize * 11 / 12);
+      ctx.font = `${tickSize}px serif`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'top';
+      ctx.strokeStyle = '#000000';
+      for (let x = Math.ceil(c.xMin); x <= Math.floor(c.xMax); x++) {
+        if (x === 0) continue;
+        const { px } = this.toPixel(x, 0);
+        ctx.beginPath(); ctx.moveTo(px, yAxis - 3); ctx.lineTo(px, yAxis + 3); ctx.stroke();
+        ctx.fillText(String(x), px, yAxis + 5);
+      }
+    }
+
+    // y 軸目盛り (数値とティック)
+    if (c.showTicksY !== false) {
+      ctx.lineWidth = 1;
+      const tickSize = Math.round(baseSize * 11 / 12);
+      ctx.font = `${tickSize}px serif`;
+      ctx.textAlign    = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.strokeStyle = '#000000';
+      for (let y = Math.ceil(c.yMin); y <= Math.floor(c.yMax); y++) {
+        if (y === 0) continue;
+        const { py } = this.toPixel(0, y);
+        ctx.beginPath(); ctx.moveTo(xAxis - 3, py); ctx.lineTo(xAxis + 3, py); ctx.stroke();
+        ctx.fillText(String(y), xAxis - 5, py);
+      }
     }
 
     ctx.restore();
@@ -259,10 +336,13 @@ class WaveRenderer {
 
   /** 時刻ラベル（右上に小さく表示） */
   drawTimeLabel(t, customLabel) {
+    if (this.config.showTimeLabel === false) return;
     const ctx = this.ctx;
     const c   = this.config;
     ctx.save();
-    ctx.font         = 'bold 13px serif';
+    const baseSize = this.config.fontSize || 12;
+    const timeSize = Math.round(baseSize * 13 / 12);
+    ctx.font         = `bold ${timeSize}px serif`;
     ctx.fillStyle    = '#000000';
     ctx.textAlign    = 'right';
     ctx.textBaseline = 'top';
@@ -355,7 +435,9 @@ class WaveRenderer {
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle    = '#333333';
-    ctx.font         = '10px sans-serif';
+    const baseSize = this.config.fontSize || 12;
+    const boundarySize = Math.round(baseSize * 10 / 12);
+    ctx.font         = `${boundarySize}px sans-serif`;
     ctx.textAlign    = 'left';
     ctx.textBaseline = 'top';
     ctx.fillText('媒質の端', px + 3, topPy + 1);
@@ -375,7 +457,9 @@ class WaveRenderer {
     const legendY = this.logicalHeight - c.paddingBottom / 2 + 4;
     const { px: xLeft } = this.toPixel(c.xMin, 0);
 
-    ctx.font         = '11px serif';
+    const baseSize = this.config.fontSize || 12;
+    const legendSize = Math.round(baseSize * 11 / 12);
+    ctx.font         = `${legendSize}px serif`;
     ctx.textBaseline = 'middle';
     ctx.textAlign    = 'left';
 

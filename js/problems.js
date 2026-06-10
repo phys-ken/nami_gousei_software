@@ -218,6 +218,15 @@ class ProblemGenerator {
       paddingLeft: 52, paddingRight: 52,
       paddingTop: 32, paddingBottom: 44,
       gridStyle: sc ? sc.grid : undefined,
+      fontSize: gc.fontSize,
+      showGrid: gc.showGrid,
+      showAxes: gc.showAxes,
+      showZeroLine: gc.showZeroLine,
+      showTicksY: gc.showTicksY,
+      showTicksX: gc.showTicksX,
+      showUnitY: gc.showUnitY,
+      showUnitX: gc.showUnitX,
+      showTimeLabel: gc.showTimeLabel,
     };
   }
 
@@ -226,7 +235,7 @@ class ProblemGenerator {
     const cs = this.state.cellSize;
     const gc = this.state.gridConfig;
     return WaveRenderer.computeCanvasSize(
-      { xMin: gc.yMin, xMax: gc.yMax, yMin: gc.yMin, yMax: gc.yMax },
+      { xMin: gc.yMin, xMax: gc.yMax, yMin: gc.yMin, yMax: gc.yMax, fontSize: gc.fontSize },
       { w: null, h: cs ? cs.h : null }
     ).height;
   }
@@ -511,12 +520,21 @@ class ProblemGenerator {
       paddingLeft: 52, paddingRight: 52,
       paddingTop: 32, paddingBottom: 44,
       gridStyle: sc ? sc.grid : undefined,
+      fontSize: gc.fontSize,
+      showGrid: gc.showGrid,
+      showAxes: gc.showAxes,
+      showZeroLine: gc.showZeroLine,
+      showTicksY: gc.showTicksY,
+      showTicksX: gc.showTicksX,
+      showUnitY: gc.showUnitY,
+      showUnitX: gc.showUnitX,
+      showTimeLabel: gc.showTimeLabel,
     };
 
     // y-t グラフのサイズ：横は固定 580px（時間軸の物理意味が y-x と異なるため
     // cellSize.w は流用しない）。縦のみ cellSize.h を反映する。
     const ytSize = WaveRenderer.computeCanvasSize(
-      { xMin: gc.yMin, xMax: gc.yMax, yMin: gc.yMin, yMax: gc.yMax }, // 幅算出には使わないダミー
+      { xMin: gc.yMin, xMax: gc.yMax, yMin: gc.yMin, yMax: gc.yMax, fontSize: gc.fontSize }, // 幅算出には使わないダミー
       { w: null, h: cs ? cs.h : null }
     );
 

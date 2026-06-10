@@ -43,3 +43,6 @@ sample_codes/
 
 # Antigravity AI CLI（ローカル設定・キャッシュ）
 .antigravitycli/
+
+# 引継ぎ用文書
+claude_transition.md

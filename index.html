@@ -5,6 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>波動　設問作成ソフト</title>
   <link rel="stylesheet" href="css/style.css">
+  <script>
+    window.onerror = function(message, source, lineno, colno, error) {
+      const div = document.createElement('div');
+      div.style.position = 'fixed';
+      div.style.top = '0';
+      div.style.left = '0';
+      div.style.width = '100%';
+      div.style.background = 'red';
+      div.style.color = 'white';
+      div.style.padding = '10px';
+      div.style.zIndex = '10000';
+      div.style.fontSize = '14px';
+      div.innerText = 'JS Error: ' + message + ' at ' + source + ':' + lineno + ':' + colno + '\nStack: ' + (error ? error.stack : 'N/A');
+      document.body.appendChild(div);
+      return false;
+    };
+  </script>
 </head>
 <body>
 
@@ -62,27 +79,85 @@
 
       <p class="apply-hint">軸範囲・1目盛りサイズをCanvasに反映します</p>
 
-      <!-- 詳細設定（波形のみモード） -->
-      <details class="cell-size-details">
-        <summary>詳細設定</summary>
+      <!-- 表示項目設定（詳細） -->
+      <details class="cell-size-details" id="displaySettingsDetails">
+        <summary>表示項目設定 (詳細)</summary>
         <div class="setting-row wave-only-row">
           <label class="wave-only-label">
-            <input type="checkbox" id="waveOnlyMode" onchange="App.toggleWaveOnlySubOptions()">
-            波形のみを表示（グリッド・軸なし）
+            <input type="checkbox" id="waveOnlyMode" onchange="App.onWaveOnlyModeChange()">
+            波形のみ表示（すべての軸・グリッド・文字なし）
           </label>
         </div>
-        <div class="setting-row wave-only-row" id="keepZeroLineRow" style="margin-left: 20px; display: none;">
-          <label class="wave-only-label">
-            <input type="checkbox" id="keepZeroLine">
-            横軸（y=0の直線）を残す
-          </label>
+        <div class="display-options-container" id="displayOptionsContainer" style="margin-left: 10px; margin-top: 5px;">
+          <div class="display-option-item" style="margin-bottom: 4px;">
+            <label style="font-size: 11px; cursor: pointer;">
+              <input type="checkbox" id="showGrid" checked onchange="App.onDisplayOptionChange()"> 背景グリッドを表示
+            </label>
+          </div>
+          <div class="display-option-item" style="margin-bottom: 4px;">
+            <label style="font-size: 11px; cursor: pointer;">
+              <input type="checkbox" id="showAxes" checked onchange="App.onDisplayOptionChange()"> グラフの軸（実線・矢印）
+            </label>
+          </div>
+          <div class="display-option-item" style="margin-bottom: 4px;">
+            <label style="font-size: 11px; cursor: pointer;">
+              <input type="checkbox" id="showZeroLine" checked onchange="App.onDisplayOptionChange()"> 横軸（y=0 の点線）
+            </label>
+          </div>
+          <div class="display-option-item" style="margin-bottom: 4px;">
+            <label style="font-size: 11px; cursor: pointer;">
+              <input type="checkbox" id="showTicksY" checked onchange="App.onDisplayOptionChange()"> 縦軸目盛り（数値）
+            </label>
+          </div>
+          <div class="display-option-item" style="margin-bottom: 4px;">
+            <label style="font-size: 11px; cursor: pointer;">
+              <input type="checkbox" id="showTicksX" checked onchange="App.onDisplayOptionChange()"> 横軸目盛り（数値）
+            </label>
+          </div>
+          <div class="display-option-item" style="margin-bottom: 4px;">
+            <label style="font-size: 11px; cursor: pointer;">
+              <input type="checkbox" id="showUnitY" checked onchange="App.onDisplayOptionChange()"> 縦軸単位（[cm]など）
+            </label>
+          </div>
+          <div class="display-option-item" style="margin-bottom: 4px;">
+            <label style="font-size: 11px; cursor: pointer;">
+              <input type="checkbox" id="showUnitX" checked onchange="App.onDisplayOptionChange()"> 横軸単位（[cm]/[s]など）
+            </label>
+          </div>
+          <div class="display-option-item" style="margin-bottom: 4px;">
+            <label style="font-size: 11px; cursor: pointer;">
+              <input type="checkbox" id="showTimeLabel" checked onchange="App.onDisplayOptionChange()"> 経過時間（時刻ラベル）
+            </label>
+          </div>
         </div>
-        <p class="cell-size-hint">チェックすると背景グリッド・軸線・ラベルをすべて非表示にし、波形曲線のみを出力します。授業プリントへの図の貼り付けに便利です。</p>
+        <!-- クイック設定プリセット -->
+        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee;">
+          <span style="font-size: 10px; color: #666; display: block; margin-bottom: 4px;">プリセット:</span>
+          <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+            <button type="button" class="btn-sub-xs" onclick="App.applyDisplayPreset('all')" style="font-size: 10px; padding: 2px 6px;">標準</button>
+            <button type="button" class="btn-sub-xs" onclick="App.applyDisplayPreset('qualitative')" style="font-size: 10px; padding: 2px 6px;">定性的</button>
+            <button type="button" class="btn-sub-xs" onclick="App.applyDisplayPreset('qualitative-grid')" style="font-size: 10px; padding: 2px 6px;">定性的+グリッド</button>
+          </div>
+        </div>
       </details>
 
       <div class="btn-row">
         <button class="btn-primary" onclick="App.applyGridConfig()">グリッドを適用</button>
       </div>
+    </div>
+
+    <!-- 文字サイズ設定 -->
+    <div class="settings-group">
+      <h3>文字サイズ設定</h3>
+      <div class="setting-row">
+        <label>サイズ</label>
+        <div class="font-size-inputs">
+          <input type="range" id="fontSizeRange" min="8" max="24" value="12" step="1" oninput="App.onFontSizeChange(this.value)">
+          <input type="number" id="fontSizeNumber" min="8" max="24" value="12" step="1" onchange="App.onFontSizeChange(this.value)">
+          <span class="unit">px</span>
+        </div>
+      </div>
+      <p class="apply-hint">グラフ内テキスト（軸ラベル、目盛り、原点など）のフォントサイズを一律変更します。</p>
     </div>
 
     <!-- 描画スタイル設定 -->
