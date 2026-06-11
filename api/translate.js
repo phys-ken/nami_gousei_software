@@ -131,7 +131,7 @@ function attachType3Or4Choices(result, gen, spec, sandbox) {
   for (const dJson of cfg.distractors || []) {
     const dWave = buildWave(dJson, sandbox);
     let canvas;
-    if (type === 3)      canvas = gen.renderType3DistractorCanvas(dWave, spec.params.tMax);
+    if (type === 3)      canvas = gen.renderType3DistractorCanvas(dWave, spec.params.x, spec.params.tMax);
     else if (type === 1) canvas = gen.renderType1DistractorCanvas(dWave, spec.params.answerT);
     else                 canvas = gen.renderType4DistractorCanvas(dWave, spec.params.answerT);
     items.push({ canvas, isCorrect: false });

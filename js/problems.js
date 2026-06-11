@@ -292,8 +292,12 @@ class ProblemGenerator {
   /**
    * Type3 の不正解（distractor）を描画した Canvas を返す
    * distractorWave は (t, y) 座標空間の頂点を持つ Wave
+   *
+   * @param {Wave} distractorWave 不正解の波形
+   * @param {number} x   観測地点（正答と同じラベルを表示するため）
+   * @param {number} tMax 時間上限
    */
-  renderType3DistractorCanvas(distractorWave, tMax) {
+  renderType3DistractorCanvas(distractorWave, x, tMax) {
     const ytConfig = this._type3GridConfig(tMax);
     const h = this._type3CanvasHeight();
     const canvas = this._makeCanvas(WaveRenderer.DEFAULT_DISP_W, h);
@@ -301,6 +305,7 @@ class ProblemGenerator {
     r.clear();
     r.drawGrid();
     r.drawAxes({ xLabel: 't [s]', yLabel: 'y [cm]' });
+    r.drawTimeLabel(null, `x = ${x} [cm] の地点`);
     if (distractorWave && !distractorWave.isEmpty()) {
       // distractor は静的な折れ線（伝播しない）→ getSnapshot(_, _, 0) を使う
       const pts = distractorWave.getSnapshot(0, tMax, 0);

@@ -1853,8 +1853,9 @@ const App = {
     cfg.distractors.forEach((distractorWave, i) => {
       let canvas;
       if (type === 'type3') {
+        const x    = parseFloat(document.getElementById('p3-x').value);
         const tMax = parseInt(document.getElementById('p3-tMax').value, 10);
-        canvas = generator.renderType3DistractorCanvas(distractorWave, tMax);
+        canvas = generator.renderType3DistractorCanvas(distractorWave, x, tMax);
       } else if (type === 'type1') {
         const t = parseInt(document.getElementById('p1-answerT').value, 10);
         canvas = generator.renderType1DistractorCanvas(distractorWave, t);
